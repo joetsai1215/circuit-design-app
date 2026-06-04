@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sequential Circuit Design Automation System (AI-Enhanced)</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--bg1:#161b22;--bg2:#1c2330;--bg3:#212936;
+  --border:#30363d;--border2:#3d444d;
+  --text:#e6edf3;--text2:#8b949e;--text3:#6e7681;
+  --accent:#58a6ff;--accent2:#1f6feb;--accent3:#0d419d;
+  --green:#3fb950;--amber:#d29922;--red:#f85149;--purple:#bc8cff;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'DM Sans',sans-serif;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px}
+.app{display:grid;grid-template-columns:390px 1fr;grid-template-rows:48px 1fr;height:100vh;overflow:hidden}
+
+/* ── Top Bar ── */
+.topbar{
+  grid-column:1/-1;background:var(--bg1);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 20px;gap:12px;z-index:10
+}
+.topbar-logo{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent);letter-spacing:.5px}
+.topbar-title{font-size:13px;color:var(--text2);font-weight:400}
+.topbar-badge{background:var(--accent3);color:var(--accent);font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--accent2)}
+.topbar-sep{width:1px;height:20px;background:var(--border);margin:0 4px}
+
+/* ── Panels ── */
+.left-panel{background:var(--bg1);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
+.right-panel{background:var(--bg);overflow-y:auto;display:flex;flex-direction:column}
+
+/* ── Zone ── */
+.zone{border-bottom:1px solid var(--border);padding:14px 16px}
+.zone-header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.zone-num{font-family:var(--mono);font-size:10px;color:var(--accent);background:var(--accent3);border:1px solid var(--accent2);padding:1px 6px;border-radius:3px;font-weight:600}
+.zone-title{font-size:11px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.8px}
+
+/* ── Radio ── */
+.radio-group{display:flex;gap:8px}
+.radio-btn{flex:1;padding:7px 12px;border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-size:13px;font-family:var(--sans);color:var(--text2);background:var(--bg2);text-align:center;transition:all .15s;user-select:none}
+.radio-btn:hover{border-color:var(--accent2);color:var(--text)}
+.radio-btn.active{background:var(--accent3);border-color:var(--accent);color:var(--accent);font-weight:500}
+
+/* ── Tabs ── */
+.tabs{display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:12px}
+.tab{flex:1;padding:7px;text-align:center;cursor:pointer;font-size:12px;color:var(--text2);background:var(--bg2);transition:all .15s;border-right:1px solid var(--border)}
+.tab:last-child{border-right:none}
+.tab:hover{color:var(--text);background:var(--bg3)}
+.tab.active{background:var(--bg);color:var(--accent);font-weight:500}
+
+/* ── Inputs ── */
+textarea{
+  width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);font-family:var(--mono);font-size:12px;padding:10px;
+  resize:vertical;min-height:110px;outline:none;line-height:1.6
+}
+textarea:focus{border-color:var(--accent2)}
+textarea::placeholder{color:var(--text3)}
+input[type=password],input[type=text]{
+  width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);font-family:var(--mono);font-size:12px;padding:8px 10px;outline:none
+}
+input[type=password]:focus,input[type=text]:focus{border-color:var(--accent2)}
+select{
+  background:var(--bg2);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);font-family:var(--sans);font-size:13px;padding:6px 10px;outline:none;cursor:pointer
+}
+select:focus{border-color:var(--accent2)}
+
+/* ── Buttons ── */
+.btn{
+  padding:8px 16px;border-radius:6px;font-size:13px;font-family:var(--sans);
+  font-weight:500;cursor:pointer;transition:all .15s;border:1px solid;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px
+}
+.btn-primary{background:var(--accent2);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:#388bfd}
+.btn-primary:active{transform:scale(.98)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-outline{background:transparent;border-color:var(--border2);color:var(--text2)}
+.btn-outline:hover{border-color:var(--accent2);color:var(--accent)}
+.btn-success{background:#1a3a22;border-color:var(--green);color:var(--green)}
+.btn-success:hover{background:#1f4428}
+.btn-success:disabled{opacity:.5;cursor:not-allowed}
+.btn-full{width:100%}
+
+/* ── State Table ── */
+.state-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+.state-table th{
+  background:var(--bg3);color:var(--text2);padding:6px 8px;
+  border:1px solid var(--border);font-weight:500;text-align:center;font-size:11px;letter-spacing:.3px
+}
+.state-table td{padding:0;border:1px solid var(--border)}
+.state-table td input{
+  width:100%;background:transparent;border:none;color:var(--text);
+  font-family:var(--mono);font-size:12px;padding:6px 8px;text-align:center;outline:none
+}
+.state-table td input:focus{background:var(--bg3)}
+.state-table tr:hover td{background:#1e2530}
+.del-btn{
+  background:none;border:none;color:var(--text3);cursor:pointer;padding:0 6px;
+  font-size:14px;line-height:1;transition:color .15s
+}
+.del-btn:hover{color:var(--red)}
+.add-row-btn{
+  margin-top:8px;font-size:12px;color:var(--accent);background:none;
+  border:1px dashed var(--border2);border-radius:4px;padding:5px;width:100%;
+  cursor:pointer;transition:all .15s;font-family:var(--sans)
+}
+.add-row-btn:hover{border-color:var(--accent);background:var(--accent3)}
+
+/* ── Equation / K-Map ── */
+.right-zone{padding:20px;border-bottom:1px solid var(--border)}
+.right-zone-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.eq-block{background:var(--bg1);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px}
+.eq-label{font-size:11px;color:var(--text2);margin-bottom:3px;font-weight:500;letter-spacing:.3px}
+.eq-value{font-family:var(--mono);font-size:13px;color:var(--green)}
+.kmap-wrap{background:var(--bg1);border:1px solid var(--border);border-radius:6px;padding:14px;margin-top:14px}
+.kmap-title{font-size:12px;color:var(--text2);margin-bottom:10px;font-family:var(--mono)}
+.kmap-cell{
+  width:46px;height:46px;border:1px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:13px;font-weight:500
+}
+.kmap-cell.header{background:var(--bg3);color:var(--text2);font-size:11px;font-weight:600}
+.kmap-cell.val-one{color:var(--green);background:rgba(63,185,80,.08)}
+.kmap-cell.val-zero{color:var(--text3)}
+.kmap-cell.val-dc{color:var(--amber);font-style:italic}
+.kmap-cell.grouped{box-shadow:inset 0 0 0 2.5px rgba(88,166,255,.55);background:rgba(88,166,255,.07)}
+.kmap-cell.grouped.val-one{box-shadow:inset 0 0 0 2.5px rgba(63,185,80,.6);background:rgba(63,185,80,.1)}
+
+/* ── Spinner ── */
+.spinner{
+  width:13px;height:13px;border:2px solid var(--border2);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Status ── */
+.status-bar{font-size:12px;color:var(--text3);display:flex;align-items:center;gap:6px;font-family:var(--mono)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--text3);flex-shrink:0}
+.dot.green{background:var(--green);box-shadow:0 0 6px var(--green)}
+.dot.amber{background:var(--amber);box-shadow:0 0 6px var(--amber)}
+.dot.red{background:var(--red);box-shadow:0 0 6px var(--red)}
+
+/* ── Empty State ── */
+.empty-state{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:50px 20px;text-align:center;color:var(--text3);gap:12px
+}
+.empty-icon{font-size:36px;opacity:.3}
+.empty-text{font-size:13px;line-height:1.7}
+
+/* ── Circuit Canvas ── */
+.canvas-wrap{
+  background:var(--bg2);border:1px solid var(--border);border-radius:6px;
+  overflow:hidden;cursor:grab;position:relative;height:500px
+}
+.canvas-wrap:active{cursor:grabbing}
+#circuit-svg{display:block;transition:none}
+
+/* ── API Notice ── */
+.api-notice{
+  font-size:11px;color:var(--text3);background:var(--bg3);border:1px solid var(--border);
+  border-radius:4px;padding:8px 10px;margin-top:8px;line-height:1.6
+}
+.api-notice .warn{color:var(--amber)}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* ── State Assignment Info ── */
+.assign-grid{
+  font-family:var(--mono);font-size:12px;background:var(--bg1);
+  border:1px solid var(--border);border-radius:6px;padding:10px;line-height:2
+}
+.section-label{
+  font-size:11px;color:var(--text2);font-weight:500;letter-spacing:.5px;
+  text-transform:uppercase;margin-bottom:8px;margin-top:14px
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ══════════════ TOP BAR ══════════════ -->
+  <div class="topbar">
+    <span class="topbar-logo">⬡ SCDA</span>
+    <span class="topbar-sep"></span>
+    <span class="topbar-title">Sequential Circuit Design Automation System</span>
+    <span class="topbar-badge">AI-Enhanced</span>
+    <span style="flex:1"></span>
+    <div class="status-bar">
+      <span class="dot green" id="status-dot"></span>
+      <span id="status-text">Ready</span>
+    </div>
+  </div>
+
+  <!-- ══════════════ LEFT PANEL ══════════════ -->
+  <div class="left-panel">
+
+    <!-- Zone 1: Model Type -->
+    <div class="zone">
+      <div class="zone-header">
+        <span class="zone-num">Z1</span>
+        <span class="zone-title">Model Type</span>
+      </div>
+      <div class="radio-group" id="rg-model">
+        <div class="radio-btn active" data-val="mealy" onclick="selectRadio('rg-model',this)">Mealy Model</div>
+        <div class="radio-btn" data-val="moore" onclick="selectRadio('rg-model',this)">Moore Model</div>
+      </div>
+    </div>
+
+    <!-- Zone 2: Flip-Flop Type -->
+    <div class="zone">
+      <div class="zone-header">
+        <span class="zone-num">Z2</span>
+        <span class="zone-title">Flip-Flop Type</span>
+      </div>
+      <div class="radio-group" id="rg-ff">
+        <div class="radio-btn active" data-val="jk" onclick="selectRadio('rg-ff',this)">JK Flip-Flop</div>
+        <div class="radio-btn" data-val="t" onclick="selectRadio('rg-ff',this)">T Flip-Flop</div>
+      </div>
+    </div>
+
+    <!-- Zone 3: Smart Input -->
+    <div class="zone">
+      <div class="zone-header">
+        <span class="zone-num">Z3</span>
+        <span class="zone-title">Smart Input</span>
+      </div>
+      <div class="tabs">
+        <div class="tab active" id="tab-text" onclick="switchTab('text')">📝 Text Description</div>
+        <div class="tab" id="tab-manual" onclick="switchTab('manual')">⊞ Manual Entry</div>
+      </div>
+
+      <!-- Mode A: Text -->
+      <div id="pane-text">
+        <textarea id="nl-input" placeholder="輸入電路描述，例如：&#10;&#10;A Mealy machine that outputs 1 if the input X has been 1 for three or more consecutive clock cycles. States: S0 (zero), S1 (one), S2 (two), S3 (three or more consecutive 1s)."></textarea>
+        <div class="api-notice">
+          <span class="warn">⚠ 需要 API Key：</span>請輸入 Anthropic API Key 以啟用 AI 解析功能。Key 僅在本地使用，不會儲存或傳送至其他伺服器。
+        </div>
+        <input type="password" id="api-key" placeholder="sk-ant-api03-..." style="margin-top:8px"/>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-primary" id="parse-btn" onclick="parseText()" style="flex:1">
+            <span id="parse-btn-inner">🔍 Parse to State Table</span>
+          </button>
+          <button class="btn btn-outline" onclick="loadExample()" title="載入範例">範例</button>
+        </div>
+      </div>
+
+      <!-- Mode B: Manual hint -->
+      <div id="pane-manual" style="display:none">
+        <p style="font-size:12px;color:var(--text3);line-height:1.7">
+          直接在下方 Zone 4 的 State Table 中編輯資料，或按「+ Add row」新增狀態列。
+        </p>
+        <button class="btn btn-outline btn-full" style="margin-top:10px" onclick="addTableRow()">+ Add state row</button>
+      </div>
+    </div>
+
+    <!-- Zone 4: State Table -->
+    <div class="zone" style="flex:1">
+      <div class="zone-header">
+        <span class="zone-num">Z4</span>
+        <span class="zone-title">State Table</span>
+        <span style="flex:1"></span>
+        <button class="btn btn-outline" style="padding:3px 10px;font-size:11px" onclick="clearAll()">Clear</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="state-table" id="state-table">
+          <thead>
+            <tr>
+              <th rowspan="2" style="min-width:70px">Present<br>State</th>
+              <th colspan="2">Next State</th>
+              <th colspan="2" id="out-header">Output</th>
+              <th rowspan="2" style="width:30px"></th>
+            </tr>
+            <tr>
+              <th>X=0</th><th>X=1</th>
+              <th id="out-x0">X=0</th><th id="out-x1">X=1</th>
+            </tr>
+          </thead>
+          <tbody id="state-tbody"></tbody>
+        </table>
+      </div>
+      <button class="add-row-btn" onclick="addTableRow()">+ Add row</button>
+
+      <div style="margin-top:14px">
+        <button class="btn btn-success btn-full" id="gen-btn" onclick="generateCircuit()">
+          <span id="gen-btn-inner">⚡ Generate Circuit</span>
+        </button>
+      </div>
+    </div>
+  </div><!-- end left-panel -->
+
+  <!-- ══════════════ RIGHT PANEL ══════════════ -->
+  <div class="right-panel">
+
+    <!-- Zone 5: Equations & K-Map -->
+    <div class="right-zone">
+      <div class="right-zone-header">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="zone-num">Z5</span>
+          <span class="zone-title">Equations &amp; K-Map</span>
+        </div>
+        <select id="ff-select" onchange="renderKmap()">
+          <option value="">— Select Flip-Flop —</option>
+        </select>
+      </div>
+      <div id="eq-area">
+        <div class="empty-state">
+          <div class="empty-icon">∿</div>
+          <div class="empty-text">Boolean 方程式與 Karnaugh Map 將在<br>電路產生後顯示於此。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Zone 6: Circuit Diagram -->
+    <div class="right-zone" style="flex:1;border-bottom:none">
+      <div class="right-zone-header">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="zone-num">Z6</span>
+          <span class="zone-title">Sequential Circuit Diagram</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="btn btn-outline" style="padding:4px 10px;font-size:13px" onclick="zoomBy(-0.2)">−</button>
+          <span id="zoom-label" style="font-family:var(--mono);font-size:12px;color:var(--text3);min-width:42px;text-align:center">100%</span>
+          <button class="btn btn-outline" style="padding:4px 10px;font-size:13px" onclick="zoomBy(0.2)">+</button>
+          <button class="btn btn-outline" style="padding:4px 10px;font-size:13px" onclick="resetView()" title="Reset">⌂</button>
+        </div>
+      </div>
+      <div id="circuit-empty" class="empty-state">
+        <div class="empty-icon">⊞</div>
+        <div class="empty-text">Sequential Circuit Diagram 將在此處渲染。<br>支援滑鼠拖曳平移與滾輪縮放。</div>
+      </div>
+      <div id="circuit-wrap" style="display:none">
+        <div class="canvas-wrap" id="canvas-wrap">
+          <svg id="circuit-svg" width="100%" height="100%"></svg>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end right-panel -->
+</div><!-- end .app -->
+
+<script>
+/* ══════════════════════════════════════════
+   STATE
+══════════════════════════════════════════ */
+let modelType = 'mealy';
+let ffType    = 'jk';
+let tableData = [];          // [{ps,ns0,ns1,out0,out1}]
+let lastEquations = {};      // {key: {expr, vals, groups}}
+let zoom = 1, panX = 0, panY = 0;
+let panning = false, px0 = 0, py0 = 0;
+
+/* ══════════════════════════════════════════
+   RADIO BUTTONS
+══════════════════════════════════════════ */
+function selectRadio(groupId, el) {
+  document.querySelectorAll('#' + groupId + ' .radio-btn')
+    .forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  if (groupId === 'rg-model') {
+    modelType = el.dataset.val;
+    updateOutputColHeader();
+  } else {
+    ffType = el.dataset.val;
+  }
+}
+
+function updateOutputColHeader() {
+  if (modelType === 'moore') {
+    document.getElementById('out-header').textContent = 'Output (Z)';
+    document.getElementById('out-x0').textContent = 'Z';
+    document.getElementById('out-x1').textContent = '—';
+  } else {
+    document.getElementById('out-header').textContent = 'Output';
+    document.getElementById('out-x0').textContent = 'X=0';
+    document.getElementById('out-x1').textContent = 'X=1';
+  }
+}
+
+/* ══════════════════════════════════════════
+   TABS
+══════════════════════════════════════════ */
+function switchTab(t) {
+  document.getElementById('tab-text').classList.toggle('active', t==='text');
+  document.getElementById('tab-manual').classList.toggle('active', t==='manual');
+  document.getElementById('pane-text').style.display  = t==='text'   ? '' : 'none';
+  document.getElementById('pane-manual').style.display = t==='manual' ? '' : 'none';
+}
+
+/* ══════════════════════════════════════════
+   STATE TABLE CRUD
+══════════════════════════════════════════ */
+function renderTable() {
+  const tbody = document.getElementById('state-tbody');
+  tbody.innerHTML = '';
+  tableData.forEach((row, i) => {
+    const tr = document.createElement('tr');
+    const fields = ['ps','ns0','ns1','out0','out1'];
+    fields.forEach(key => {
+      const td = document.createElement('td');
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.value = row[key] || '';
+      inp.placeholder = (key==='ps') ? 'S'+i : (key.startsWith('out')&&modelType==='moore'&&key==='out1'?'—':'');
+      inp.oninput = e => { tableData[i][key] = e.target.value.trim(); };
+      if (modelType==='moore' && key==='out1') {
+        inp.disabled = true;
+        inp.style.opacity = '.3';
+        inp.placeholder = '—';
+      }
+      td.appendChild(inp);
+      tr.appendChild(td);
+    });
+    // Delete button
+    const tdDel = document.createElement('td');
+    tdDel.style.textAlign = 'center';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'del-btn';
+    delBtn.textContent = '×';
+    delBtn.onclick = () => { tableData.splice(i,1); renderTable(); };
+    tdDel.appendChild(delBtn);
+    tr.appendChild(tdDel);
+    tbody.appendChild(tr);
+  });
+}
+
+function addTableRow() {
+  tableData.push({ps:'S'+tableData.length, ns0:'', ns1:'', out0:'', out1:''});
+  renderTable();
+}
+
+function clearAll() {
+  tableData = [];
+  renderTable();
+  lastEquations = {};
+  document.getElementById('eq-area').innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">∿</div>
+      <div class="empty-text">Boolean 方程式與 Karnaugh Map 將在電路產生後顯示於此。</div>
+    </div>`;
+  document.getElementById('ff-select').innerHTML = '<option value="">— Select Flip-Flop —</option>';
+  document.getElementById('circuit-empty').style.display = '';
+  document.getElementById('circuit-wrap').style.display = 'none';
+  setStatus('green','Ready');
+}
+
+/* ══════════════════════════════════════════
+   EXAMPLE DATA
+══════════════════════════════════════════ */
+function loadExample() {
+  document.getElementById('nl-input').value =
+    `A Mealy machine that outputs 1 if the input X has been 1 for three or more consecutive clock cycles.\n` +
+    `States:\n  S0 = zero consecutive 1s\n  S1 = one consecutive 1\n  S2 = two consecutive 1s\n  S3 = three or more consecutive 1s\n` +
+    `Output is 1 only when in state S3 and X=1.`;
+}
+
+/* ══════════════════════════════════════════
+   STATUS BAR
+══════════════════════════════════════════ */
+function setStatus(color, msg) {
+  const dot = document.getElementById('status-dot');
+  dot.className = 'dot' + (color ? ' '+color : '');
+  document.getElementById('status-text').textContent = msg;
+}
+
+/* ══════════════════════════════════════════
+   AI TEXT PARSING
+══════════════════════════════════════════ */
+async function parseText() {
+  const text = document.getElementById('nl-input').value.trim();
+  if (!text) { setStatus('amber','請輸入電路描述'); return; }
+  const apiKey = document.getElementById('api-key').value.trim();
+  if (!apiKey) { setStatus('amber','請輸入 Anthropic API Key'); return; }
+
+  const btn = document.getElementById('parse-btn');
+  const inner = document.getElementById('parse-btn-inner');
+  btn.disabled = true;
+  inner.innerHTML = '<span class="spinner"></span> Parsing with AI…';
+  setStatus('amber','呼叫 AI 解析中…');
+
+  const systemPrompt = `You are a digital logic expert specializing in sequential circuit design.
+Your task: convert a natural language circuit description into a precise state table JSON.
+
+OUTPUT FORMAT — return ONLY valid JSON, no markdown, no explanation:
+{
+  "modelType": "mealy" | "moore",
+  "states": [
+    {"ps":"S0","ns0":"S1","ns1":"S2","out0":"0","out1":"0"},
+    ...
+  ]
+}
+
+FIELD RULES:
+- ps   = present state label (use names from description, or S0,S1,S2,… if unnamed)
+- ns0  = next state when input X=0
+- ns1  = next state when input X=1
+- out0 = output when X=0 (Mealy), or state output (Moore, repeat same for out1)
+- out1 = output when X=1 (Mealy), or "d" if Moore (ignored)
+- Values for out0/out1 must be "0", "1", or "d" (don't care) only.
+- For Moore machines: out0 = out1 = state's output value.
+- List every state mentioned. Be precise about transitions and outputs.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: [{ role:'user', content: 'Parse this circuit:\n\n' + text }]
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || 'HTTP ' + res.status);
+    }
+    const data = await res.json();
+    const raw = data.content.filter(c=>c.type==='text').map(c=>c.text).join('');
+    const clean = raw.replace(/```json|```/gi,'').trim();
+    const parsed = JSON.parse(clean);
+
+    tableData = (parsed.states || []).map(s => ({
+      ps: s.ps||'', ns0: s.ns0||'', ns1: s.ns1||'',
+      out0: s.out0||'0', out1: s.out1||'0'
+    }));
+    if (parsed.modelType) {
+      modelType = parsed.modelType;
+      document.querySelectorAll('#rg-model .radio-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.val === modelType);
+      });
+      updateOutputColHeader();
+    }
+    renderTable();
+    setStatus('green', `成功解析 ${tableData.length} 個狀態`);
+  } catch(e) {
+    setStatus('red', 'Error: ' + e.message);
+    console.error(e);
+  }
+  btn.disabled = false;
+  inner.textContent = '🔍 Parse to State Table';
+}
+
+/* ══════════════════════════════════════════
+   CIRCUIT GENERATION CORE
+══════════════════════════════════════════ */
+
+/* 1) State assignment — binary encoding */
+function assignStates(states) {
+  const n = states.length;
+  const bits = Math.max(1, Math.ceil(Math.log2(Math.max(n, 2))));
+  const map = {};
+  states.forEach((s,i) => { map[s] = i.toString(2).padStart(bits,'0'); });
+  return { map, bits };
+}
+
+/* 2) FF excitation */
+function jkExcite(q, qn) {
+  if (q===0 && qn===0) return {J:0, K:'d'};
+  if (q===0 && qn===1) return {J:1, K:'d'};
+  if (q===1 && qn===0) return {J:'d', K:1};
+  return {J:'d', K:0};
+}
+function tExcite(q, qn) { return {T: q===qn ? 0 : 1}; }
+
+/* 3) Karnaugh map simplification (2-variable: A=Q_bit, B=X)
+   Gray code order: 00, 01, 11, 10  → indices 0,1,2,3        */
+function simplify2Var(rawVals) {
+  // Pad to 4
+  const v = rawVals.slice(0,4);
+  while (v.length < 4) v.push('d');
+
+  const isDC  = x => x === 'd';
+  const isOne = x => x === 1 || x === '1';
+
+  // All 1/DC → constant 1
+  if (v.every(x => isOne(x) || isDC(x)) && v.some(isOne))
+    return { expr:'1', groups:[[0,1,2,3]], vals:v };
+
+  // All 0/DC → constant 0
+  if (v.every(x => !isOne(x)))
+    return { expr:'0', groups:[], vals:v };
+
+  // Adjacent pairs (Gray code adjacency in 2-var: wrap-around 0↔3)
+  const adj4 = [[0,1],[1,2],[2,3],[0,3]];
+  const varNames = ["A","B"]; // A=row(Q), B=col(X)
+  // Gray code position → (A,B) bits
+  const pos = [[0,0],[0,1],[1,1],[1,0]];
+
+  const used = [false,false,false,false];
+  const groups = [];
+
+  // Try group-of-4
+  if (v.every(x => isOne(x) || isDC(x))) {
+    groups.push([0,1,2,3]);
+    return { expr:'1', groups, vals:v };
+  }
+
+  // Try pairs
+  for (const [a,b] of adj4) {
+    if ((isOne(v[a])||isDC(v[a])) && (isOne(v[b])||isDC(v[b]))
+        && (isOne(v[a])||isOne(v[b]))) {
+      if (!used[a] && !used[b]) {
+        used[a] = used[b] = true;
+        groups.push([a,b]);
+      }
+    }
+  }
+
+  // Remaining singles
+  for (let i=0; i<4; i++) {
+    if (isOne(v[i]) && !used[i]) { groups.push([i]); used[i]=true; }
+  }
+
+  // Build expression
+  const terms = [];
+  for (const g of groups) {
+    if (g.every(idx => isDC(v[idx]))) continue;
+    const rows = g.map(idx => pos[idx]);
+    let term = '';
+    for (let bit=0; bit<2; bit++) {
+      const bits2 = rows.map(r => r[bit]);
+      if (bits2.every(bv => bv===0)) term += varNames[bit]+"'";
+      else if (bits2.every(bv => bv===1)) term += varNames[bit];
+      // else: variable eliminated
+    }
+    terms.push(term || '1');
+  }
+
+  return { expr: terms.length ? terms.join(' + ') : '0', groups, vals:v };
+}
+
+/* Main generate function */
+function generateCircuit() {
+  if (tableData.length === 0) { setStatus('amber','請先填入 State Table'); return; }
+
+  const genBtn = document.getElementById('gen-btn');
+  const genInner = document.getElementById('gen-btn-inner');
+  genBtn.disabled = true;
+  genInner.innerHTML = '<span class="spinner"></span> Computing…';
+  setStatus('amber','計算中…');
+
+  setTimeout(() => {
+    try {
+      // Collect unique state names in order of first appearance
+      const stateOrder = [];
+      tableData.forEach(r => { if(r.ps && !stateOrder.includes(r.ps)) stateOrder.push(r.ps); });
+
+      const { map: binMap, bits } = assignStates(stateOrder);
+
+      // Build FF input value arrays
+      // For each (PS, X) combination: expand in order PS×X=0, PS×X=1 → 4-cell kmap
+      // We map (PS_bin_bit, X) → FF excitation
+      // Simplified: enumerate all (Q_bit, X) combos for a 2-var kmap
+
+      // Collect all transitions
+      const transitions = [];
+      tableData.forEach(row => {
+        if (!row.ps) return;
+        [0,1].forEach(x => {
+          const nsKey = x===0 ? 'ns0' : 'ns1';
+          const outKey = x===0 ? 'out0' : 'out1';
+          const psCode = binMap[row.ps] || '0'.repeat(bits);
+          const nsCode = binMap[row[nsKey]] !== undefined ? binMap[row[nsKey]] : psCode;
+          transitions.push({ psCode, nsCode, x, out: row[outKey] });
+        });
+      });
+
+      // Build FF input arrays keyed by (bit index)
+      // Kmap indices 0..3 → (Q_bit=0,X=0),(Q_bit=0,X=1),(Q_bit=1,X=1),(Q_bit=1,X=0) Gray
+      // We'll build a proper 2-var kmap per bit
+      const ffVals = {};  // key→array[4]
+      const outVals = Array(4).fill('d');
+
+      for (let b=0; b<bits; b++) {
+        const jkJ = Array(4).fill('d');
+        const jkK = Array(4).fill('d');
+        const tT  = Array(4).fill('d');
+
+        // Gray code: idx0=(00), idx1=(01), idx2=(11), idx3=(10)
+        // A = Q_bit (row), B = X (col)
+        const grayPos = [[0,0],[0,1],[1,1],[1,0]]; // [Q_bit, X]
+
+        grayPos.forEach(([qb, xv], idx) => {
+          // Find matching transition
+          const match = transitions.find(t => {
+            const ps_bit = parseInt(t.psCode[b]) || 0;
+            return ps_bit === qb && t.x === xv;
+          });
+          if (!match) return;
+          const ps_bit = parseInt(match.psCode[b]) || 0;
+          const ns_bit = parseInt(match.nsCode[b]) || 0;
+          const exc = jkExcite(ps_bit, ns_bit);
+          jkJ[idx] = exc.J;
+          jkK[idx] = exc.K;
+          tT[idx] = tExcite(ps_bit, ns_bit).T;
+
+          // Output (use last bit's first assignment)
+          if (b === 0) {
+            const ov = match.out;
+            outVals[idx] = (ov==='1'||ov===1) ? 1 : (ov==='d' ? 'd' : 0);
+          }
+        });
+
+        ffVals['J'+b] = jkJ;
+        ffVals['K'+b] = jkK;
+        ffVals['T'+b] = tT;
+      }
+
+      // Simplify
+      const equations = {};
+      for (let b=0; b<bits; b++) {
+        if (ffType === 'jk') {
+          equations['J'+b] = simplify2Var(ffVals['J'+b]);
+          equations['K'+b] = simplify2Var(ffVals['K'+b]);
+        } else {
+          equations['T'+b] = simplify2Var(ffVals['T'+b]);
+        }
+      }
+      equations['Z'] = simplify2Var(outVals);
+
+      lastEquations = equations;
+
+      renderEquationZone(equations, stateOrder, binMap, bits);
+      renderCircuit(stateOrder, binMap, bits, equations);
+      setStatus('green', '電路產生完成 ✓');
+    } catch(e) {
+      setStatus('red','Error: '+e.message);
+      console.error(e);
+    }
+    genBtn.disabled = false;
+    genInner.textContent = '⚡ Generate Circuit';
+  }, 40);
+}
+
+/* ══════════════════════════════════════════
+   ZONE 5: EQUATIONS + K-MAP
+══════════════════════════════════════════ */
+function renderEquationZone(equations, stateOrder, binMap, bits) {
+  const sel = document.getElementById('ff-select');
+  sel.innerHTML = '<option value="">— Select Flip-Flop —</option>';
+  Object.keys(equations).forEach(k => {
+    const o = document.createElement('option'); o.value=k; o.textContent=k;
+    sel.appendChild(o);
+  });
+
+  let html = '';
+
+  // FF equations
+  html += `<div class="section-label" style="margin-top:0">Flip-Flop Input Equations</div>`;
+  Object.entries(equations).forEach(([key,val]) => {
+    if (key==='Z') return;
+    html += `<div class="eq-block">
+      <div class="eq-label">${key}&nbsp;=</div>
+      <div class="eq-value">${val.expr || '0'}</div>
+    </div>`;
+  });
+  if (equations['Z']) {
+    html += `<div class="eq-block" style="border-color:var(--purple)">
+      <div class="eq-label" style="color:var(--purple)">Output&nbsp;Z&nbsp;=</div>
+      <div class="eq-value" style="color:var(--purple)">${equations['Z'].expr || '0'}</div>
+    </div>`;
+  }
+
+  // State assignment
+  html += `<div class="section-label">State Assignment (${bits} bit${bits>1?'s':''})</div>`;
+  html += `<div class="assign-grid">`;
+  stateOrder.forEach(s => {
+    html += `<div>
+      <span style="color:var(--text2)">${s}</span>
+      &nbsp;→&nbsp;
+      <span style="color:var(--green)">${binMap[s]}</span>
+      <span style="color:var(--text3);font-size:11px">&nbsp;(${bits>1?'Q'+(bits-1)+'..Q0':' Q0'})</span>
+    </div>`;
+  });
+  html += `</div>`;
+
+  // K-map placeholder
+  html += `<div id="kmap-host"><div class="section-label">K-Map — 從上方下拉選單選擇 Flip-Flop</div></div>`;
+
+  document.getElementById('eq-area').innerHTML = html;
+}
+
+function renderKmap() {
+  const key = document.getElementById('ff-select').value;
+  const host = document.getElementById('kmap-host');
+  if (!host) return;
+  if (!key || !lastEquations[key]) {
+    host.innerHTML = `<div class="section-label">K-Map — 從上方下拉選單選擇 Flip-Flop</div>`;
+    return;
+  }
+  const eq = lastEquations[key];
+  const v = eq.vals || [0,0,0,0];
+  const grouped = new Set((eq.groups||[]).flat());
+
+  let html = `<div class="section-label">K-Map: ${key}</div>`;
+  html += `<div class="kmap-wrap">`;
+  html += `<div class="kmap-title">A = Q (row) | B = X (col) &nbsp;→&nbsp; <span style="color:var(--green)">${key} = ${eq.expr}</span></div>`;
+  // Grid
+  html += `<div style="display:grid;grid-template-columns:repeat(5,46px);width:fit-content">`;
+  // Header row
+  html += `<div class="kmap-cell header">A\\B</div>`;
+  ['00','01','11','10'].forEach(h => { html += `<div class="kmap-cell header">${h}</div>`; });
+  // Data row (label + 4 cells)
+  html += `<div class="kmap-cell header">Q</div>`;
+  v.forEach((val,i) => {
+    const isGrouped = grouped.has(i);
+    let cls = 'kmap-cell ';
+    if (val==='d' || val===undefined) cls += 'val-dc';
+    else if (val===1) cls += 'val-one';
+    else cls += 'val-zero';
+    if (isGrouped && val!=='d') cls += ' grouped';
+    const display = (val==='d') ? 'X' : (val===undefined ? '?' : String(val));
+    html += `<div class="${cls}">${display}</div>`;
+  });
+  html += `</div></div>`;
+
+  host.innerHTML = html;
+}
+
+/* ══════════════════════════════════════════
+   ZONE 6: CIRCUIT SVG
+══════════════════════════════════════════ */
+function renderCircuit(stateOrder, binMap, bits, equations) {
+  document.getElementById('circuit-empty').style.display = 'none';
+  document.getElementById('circuit-wrap').style.display  = '';
+
+  const svg = document.getElementById('circuit-svg');
+  const W = 1000, H = Math.max(580, 200 + bits * 160);
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  /* Layout */
+  const CLK_X=55, CLK_Y=Math.floor(H/2);
+  const INP_X=20, INP_Y=90;
+  const COMB_X=165, COMB_Y=Math.floor(H/2)-55, COMB_W=110, COMB_H=100;
+  const FF_X=380, FF_W=130, FF_H=110, FF_GAP=150;
+  const FF_BASE_Y = Math.floor(H/2) - ((bits-1)*FF_GAP)/2 - FF_H/2;
+  const OUT_X=660, OUT_W=100, OUT_H=70;
+  const OUT_Y=Math.floor(H/2)-OUT_H/2;
+  const Z_X=800, Z_Y=Math.floor(H/2)-18;
+
+  // Background grid
+  let s = `<rect width="${W}" height="${H}" fill="#0d1117"/>`;
+  for (let gx=40;gx<W;gx+=40) for(let gy=40;gy<H;gy+=40)
+    s += `<circle cx="${gx}" cy="${gy}" r="1" fill="#1e2530"/>`;
+
+  // Title
+  s += `<text x="16" y="24" fill="#3d444d" font-family="'JetBrains Mono',monospace" font-size="11">
+    ${bits}-bit / ${ffType.toUpperCase()} / ${modelType.toUpperCase()} — ${stateOrder.length} states: ${stateOrder.join(', ')}
+  </text>`;
+
+  /* Clock */
+  s += `<rect x="${CLK_X-28}" y="${CLK_Y-32}" width="74" height="54" rx="6"
+    fill="#1c2330" stroke="#58a6ff" stroke-width="1.2"/>`;
+  s += `<text x="${CLK_X+9}" y="${CLK_Y-14}" fill="#58a6ff"
+    font-family="'JetBrains Mono',monospace" font-size="11" text-anchor="middle">CLK</text>`;
+  s += `<polyline points="${CLK_X-5},${CLK_Y+4} ${CLK_X+1},${CLK_Y+4} ${CLK_X+1},${CLK_Y-8} ${CLK_X+9},${CLK_Y-8} ${CLK_X+9},${CLK_Y+4} ${CLK_X+19},${CLK_Y+4}"
+    fill="none" stroke="#58a6ff" stroke-width="1.5"/>`;
+  // CLK bus line down to flip-flops (dashed)
+  const clkBusX = CLK_X + 9;
+  s += `<line x1="${clkBusX}" y1="${CLK_Y+22}" x2="${clkBusX}" y2="${H-40}"
+    stroke="#58a6ff" stroke-width="1" stroke-dasharray="3 3" opacity=".4"/>`;
+
+  /* Input X */
+  s += `<rect x="${INP_X}" y="${INP_Y}" width="52" height="36" rx="6"
+    fill="#1c2330" stroke="#3fb950" stroke-width="1.2"/>`;
+  s += `<text x="${INP_X+26}" y="${INP_Y+24}" fill="#3fb950"
+    font-family="'JetBrains Mono',monospace" font-size="14" text-anchor="middle" font-weight="600">X</text>`;
+  s += `<line x1="${INP_X+52}" y1="${INP_Y+18}" x2="${COMB_X}" y2="${COMB_Y+30}"
+    stroke="#3fb950" stroke-width="1.5"
+    marker-end="url(#arr-g)"/>`;
+
+  /* Arrows defs */
+  s = `<defs>
+    <marker id="arr-b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#58a6ff" stroke-width="1.5" stroke-linecap="round"/>
+    </marker>
+    <marker id="arr-g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#3fb950" stroke-width="1.5" stroke-linecap="round"/>
+    </marker>
+    <marker id="arr-p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#bc8cff" stroke-width="1.5" stroke-linecap="round"/>
+    </marker>
+    <marker id="arr-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#d29922" stroke-width="1.5" stroke-linecap="round"/>
+    </marker>
+  </defs>` + s;
+
+  /* Combinational Logic Block */
+  s += `<rect x="${COMB_X}" y="${COMB_Y}" width="${COMB_W}" height="${COMB_H}" rx="8"
+    fill="#1c2330" stroke="#d29922" stroke-width="1.5" stroke-dasharray="5 2.5"/>`;
+  s += `<text x="${COMB_X+COMB_W/2}" y="${COMB_Y+24}"
+    fill="#d29922" font-family="'JetBrains Mono',monospace" font-size="11" text-anchor="middle">COMB.</text>`;
+  s += `<text x="${COMB_X+COMB_W/2}" y="${COMB_Y+40}"
+    fill="#d29922" font-family="'JetBrains Mono',monospace" font-size="11" text-anchor="middle">LOGIC</text>`;
+  s += `<text x="${COMB_X+COMB_W/2}" y="${COMB_Y+58}"
+    fill="#8b949e" font-family="'JetBrains Mono',monospace" font-size="9" text-anchor="middle">${ffType.toUpperCase()} excit.</text>`;
+  s += `<text x="${COMB_X+COMB_W/2}" y="${COMB_Y+74}"
+    fill="#6e7681" font-family="'JetBrains Mono',monospace" font-size="9" text-anchor="middle">f(Q, X)</text>`;
+  s += `<text x="${COMB_X+COMB_W/2}" y="${COMB_Y+90}"
+    fill="#6e7681" font-family="'JetBrains Mono',monospace" font-size="9" text-anchor="middle">${stateOrder.length} states</text>`;
+
+  /* Flip-Flops */
+  for (let f=0; f<bits; f++) {
+    const FFY = FF_BASE_Y + f * FF_GAP;
+    const FFCX = FF_X + FF_W/2;
+    const FFCY = FFY + FF_H/2;
+
+    // FF box
+    s += `<rect x="${FF_X}" y="${FFY}" width="${FF_W}" height="${FF_H}" rx="8"
+      fill="#1c2330" stroke="#58a6ff" stroke-width="1.5"/>`;
+    s += `<line x1="${FF_X}" y1="${FFY+26}" x2="${FF_X+FF_W}" y2="${FFY+26}"
+      stroke="#30363d" stroke-width="0.5"/>`;
+    s += `<text x="${FFCX}" y="${FFY+18}"
+      fill="#58a6ff" font-family="'JetBrains Mono',monospace" font-size="12" text-anchor="middle" font-weight="600">${ffType.toUpperCase()}-FF${f}</text>`;
+
+    // Pin labels inside
+    if (ffType==='jk') {
+      s += `<text x="${FF_X+10}" y="${FFY+50}" fill="#8b949e" font-family="'JetBrains Mono',monospace" font-size="10">J</text>`;
+      s += `<text x="${FF_X+10}" y="${FFY+76}" fill="#8b949e" font-family="'JetBrains Mono',monospace" font-size="10">K</text>`;
+      s += `<text x="${FF_X+FF_W-10}" y="${FFY+50}" fill="#3fb950" font-family="'JetBrains Mono',monospace" font-size="10" text-anchor="end">Q${f}</text>`;
+      s += `<text x="${FF_X+FF_W-10}" y="${FFY+76}" fill="#6e7681" font-family="'JetBrains Mono',monospace" font-size="10" text-anchor="end">Q${f}'</text>`;
+
+      // J input pin
+      const JY = FFY+46, KY = FFY+72;
+      s += `<circle cx="${FF_X}" cy="${JY}" r="3" fill="#58a6ff"/>`;
+      s += `<circle cx="${FF_X}" cy="${KY}" r="3" fill="#58a6ff"/>`;
+      // Q output pin
+      const QY = FFY+46;
+      s += `<circle cx="${FF_X+FF_W}" cy="${QY}" r="3" fill="#3fb950"/>`;
+
+      // Wires from comb → J, K
+      const combOutX = COMB_X+COMB_W;
+      const combMidY = COMB_Y+COMB_H/2;
+      const wireJY = combMidY - bits*12 + f*20 - 8;
+      const wireKY = combMidY - bits*12 + f*20 + 8;
+      s += `<path d="M${combOutX} ${COMB_Y+30+(f*18)} L${FF_X-40} ${COMB_Y+30+(f*18)} L${FF_X-40} ${JY} L${FF_X} ${JY}"
+        fill="none" stroke="#58a6ff" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr-b)"/>`;
+      s += `<path d="M${combOutX} ${COMB_Y+50+(f*18)} L${FF_X-60} ${COMB_Y+50+(f*18)} L${FF_X-60} ${KY} L${FF_X} ${KY}"
+        fill="none" stroke="#58a6ff" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr-b)"/>`;
+
+      // Equation labels
+      if (equations['J'+f]) {
+        s += `<text x="${FF_X-8}" y="${JY-6}"
+          fill="#3d444d" font-family="'JetBrains Mono',monospace" font-size="9" text-anchor="end">J${f}=${equations['J'+f].expr}</text>`;
+      }
+      if (equations['K'+f]) {
+        s += `<text x="${FF_X-8}" y="${KY-6}"
+          fill="#3d444d" font-family="'JetBrains Mono',monospace" font-size="9" text-anchor="end">K${f}=${equations['K'+f].expr}</text>`;
+      }
+    } else {
+      // T flip-flop
+      s += `<text x="${FF_X+10}" y="${FFY+62}" fill="#8b949e" font-family="'JetBrains Mono',monospace" font-size="10">T</text>`;
+      s += `<text x="${FF_X+FF_W-10}" y="${FFY+62}" fill="#3fb950" font-family="'JetBrains Mono',monospace" font-size="10" text-anchor="end">Q${f}</text>`;
+      const TY = FFY+58;
+      s += `<circle cx="${FF_X}" cy="${TY}" r="3" fill="#58a6ff"/>`;
+      s += `<circle cx="${FF_X+FF_W}" cy="${TY}" r="3" fill="#3fb950"/>`;
+      const combOutX = COMB_X+COMB_W;
+      s += `<path d="M${combOutX} ${COMB_Y+40+(f*15)} L${FF_X-40} ${COMB_Y+40+(f*15)} L${FF_X-40} ${TY} L${FF_X} ${TY}"
+        fill="none" stroke="#58a6ff" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr-b)"/>`;
+      if (equations['T'+f]) {
+        s += `<text x="${FF_X-8}" y="${TY-6}"
+          fill="#3d444d" font-family="'JetBrains Mono',monospace" font-size="9" text-anchor="end">T${f}=${equations['T'+f].expr}</text>`;
+      }
+    }
+
+    // Q output wire
+    const QoutY = ffType==='jk' ? FFY+46 : FFY+58;
+    const QlineEndX = OUT_X - 30;
+    s += `<line x1="${FF_X+FF_W}" y1="${QoutY}" x2="${QlineEndX}" y2="${QoutY}"
+      stroke="#3fb950" stroke-width="1.5"/>`;
+    s += `<text x="${QlineEndX-4}" y="${QoutY-6}"
+      fill="#3fb950" font-family="'JetBrains Mono',monospace" font-size="10" text-anchor="end">Q${f}</text>`;
+
+    // Feedback arc (Q → Comb block bottom)
+    const fbY  = H - 50 - f*16;
+    const fbEndY = COMB_Y + COMB_H;
+    s += `<path d="M${FF_X+FF_W+10} ${QoutY} L${FF_X+FF_W+10} ${fbY} L${COMB_X+20+f*20} ${fbY} L${COMB_X+20+f*20} ${fbEndY}"
+      fill="none" stroke="#3fb950" stroke-width="1" stroke-dasharray="2 3" opacity=".5"/>`;
+
+    // CLK wire to FF
+    const clkDropX = FF_X + 55;
+    s += `<path d="M${clkBusX} ${CLK_Y+22+(f*10)} L${clkBusX+(f+1)*30} ${CLK_Y+22+(f*10)} L${clkBusX+(f+1)*30} ${FFY+FF_H} L${clkDropX} ${FFY+FF_H}"
+      fill="none" stroke="#58a6ff" stroke-width="1" stroke-dasharray="2 2" opacity=".5"/>`;
+    // CLK triangle
+    s += `<polygon points="${clkDropX-5},${FFY+FF_H} ${clkDropX+5},${FFY+FF_H} ${clkDropX},${FFY+FF_H-9}"
+      fill="#58a6ff" opacity=".7"/>`;
+    s += `<text x="${clkDropX+8}" y="${FFY+FF_H-2}"
+      fill="#6e7681" font-family="'JetBrains Mono',monospace" font-size="8">CLK</text>`;
+  }
+
+  /* Output Logic Block */
+  s += `<rect x="${OUT_X}" y="${OUT_Y}" width="${OUT_W}" height="${OUT_H}" rx="8"
+    fill="#1c2330" stroke="#bc8cff" stroke-width="1.5"/>`;
+  s += `<text x="${OUT_X+OUT_W/2}" y="${OUT_Y+24}"
+    fill="#bc8cff" font-family="'JetBrains Mono',monospace" font-size="11" text-anchor="middle">OUTPUT</text>`;
+  s += `<text x="${OUT_X+OUT_W/2}" y="${OUT_Y+40}"
+    fill="#bc8cff" font-family="'JetBrains Mono',monospace" font-size="11" text-anchor="middle">LOGIC</text>`;
+  s += `<text x="${OUT_X+OUT_W/2}" y="${OUT_Y+56}"
+    fill="#8b949e" font-family="'JetBrains Mono',monospace" font-size="9" text-anchor="middle">${modelType==='mealy'?'f(Q,X)':'f(Q)'}</text>`;
+
+  // Q inputs to output block (from the right edge of each FF path)
+  for (let f=0; f<bits; f++) {
+    const QoutY = FF_BASE_Y + f*FF_GAP + (ffType==='jk'?46:58);
+    const midX = FF_X+FF_W+30;
+    s += `<path d="M${midX} ${QoutY} L${OUT_X} ${OUT_Y+30+(f-bits/2+.5)*18}"
+      fill="none" stroke="#3fb950" stroke-width="1" opacity=".5" marker-end="url(#arr-g)"/>`;
+  }
+  // X also → output (Mealy)
+  if (modelType==='mealy') {
+    s += `<path d="M${INP_X+52} ${INP_Y+18} L${OUT_X+OUT_W/2} ${INP_Y+18} L${OUT_X+OUT_W/2} ${OUT_Y}"
+      fill="none" stroke="#3fb950" stroke-width="1" stroke-dasharray="3 2" opacity=".4" marker-end="url(#arr-g)"/>`;
+  }
+
+  /* Output Z */
+  s += `<line x1="${OUT_X+OUT_W}" y1="${OUT_Y+OUT_H/2}" x2="${Z_X}" y2="${Z_Y+18}"
+    stroke="#bc8cff" stroke-width="1.5" marker-end="url(#arr-p)"/>`;
+  s += `<rect x="${Z_X}" y="${Z_Y}" width="50" height="36" rx="6"
+    fill="#1c2330" stroke="#bc8cff" stroke-width="1.2"/>`;
+  s += `<text x="${Z_X+25}" y="${Z_Y+24}"
+    fill="#bc8cff" font-family="'JetBrains Mono',monospace" font-size="16" text-anchor="middle" font-weight="700">Z</text>`;
+  if (equations['Z']) {
+    s += `<text x="${Z_X+25}" y="${Z_Y+50}"
+      fill="#6e7681" font-family="'JetBrains Mono',monospace" font-size="9" text-anchor="middle">Z=${equations['Z'].expr}</text>`;
+  }
+
+  /* Legend */
+  const LY = H-52;
+  s += `<rect x="16" y="${LY-10}" width="360" height="46" rx="5"
+    fill="#1c2330" stroke="#30363d" stroke-width="0.5"/>`;
+  const legend = [
+    { color:'#58a6ff', label:'CLK / FF inputs', x:28 },
+    { color:'#3fb950', label:'Q state / feedback', x:28+165 },
+  ];
+  const legend2 = [
+    { color:'#d29922', label:'Comb. logic', x:28, dash:true },
+    { color:'#bc8cff', label:'Output Z', x:28+165 },
+  ];
+  legend.forEach(l => {
+    s += `<line x1="${l.x}" y1="${LY+8}" x2="${l.x+28}" y2="${LY+8}" stroke="${l.color}" stroke-width="2"/>`;
+    s += `<text x="${l.x+34}" y="${LY+12}" fill="#6e7681" font-family="'JetBrains Mono',monospace" font-size="10">${l.label}</text>`;
+  });
+  legend2.forEach(l => {
+    s += `<line x1="${l.x}" y1="${LY+28}" x2="${l.x+28}" y2="${LY+28}" stroke="${l.color}" stroke-width="2" ${l.dash?'stroke-dasharray="4 2"':''} />`;
+    s += `<text x="${l.x+34}" y="${LY+32}" fill="#6e7681" font-family="'JetBrains Mono',monospace" font-size="10">${l.label}</text>`;
+  });
+
+  svg.innerHTML = s;
+  setupPanZoom();
+  resetView();
+}
+
+/* ══════════════════════════════════════════
+   PAN & ZOOM
+══════════════════════════════════════════ */
+function setupPanZoom() {
+  const wrap = document.getElementById('canvas-wrap');
+  wrap.onmousedown = e => {
+    panning=true; px0=e.clientX; py0=e.clientY; e.preventDefault();
+  };
+  wrap.onmousemove = e => {
+    if (!panning) return;
+    panX += e.clientX-px0; panY += e.clientY-py0;
+    px0=e.clientX; py0=e.clientY;
+    applyTransform();
+  };
+  wrap.onmouseup = wrap.onmouseleave = () => { panning=false; };
+  wrap.onwheel = e => { e.preventDefault(); zoomBy(e.deltaY<0?0.15:-0.15); };
+}
+function applyTransform() {
+  const svg = document.getElementById('circuit-svg');
+  if (!svg) return;
+  svg.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
+  svg.style.transformOrigin = 'top left';
+  document.getElementById('zoom-label').textContent = Math.round(zoom*100)+'%';
+}
+function zoomBy(d) {
+  zoom = Math.min(4, Math.max(0.2, zoom+d));
+  applyTransform();
+}
+function resetView() { zoom=1; panX=0; panY=0; applyTransform(); }
+
+/* ══════════════════════════════════════════
+   INIT — preload example state table
+══════════════════════════════════════════ */
+(function init() {
+  tableData = [
+    {ps:'S0', ns0:'S0', ns1:'S1', out0:'0', out1:'0'},
+    {ps:'S1', ns0:'S0', ns1:'S2', out0:'0', out1:'0'},
+    {ps:'S2', ns0:'S0', ns1:'S3', out0:'0', out1:'0'},
+    {ps:'S3', ns0:'S0', ns1:'S3', out0:'0', out1:'1'},
+  ];
+  renderTable();
+  setStatus('green','Ready — 已載入 3-consecutive-1s 範例電路');
+})();
+</script>
+</body>
+</html>
