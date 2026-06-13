@@ -886,27 +886,44 @@ function renderSelectedKMap() {
 }
 
 function renderKMapCard(equation, kmap) {
-  const twoColumn = kmap.columnLabels.length === 2 ? " two-col" : "";
   return `
     <article class="kmap-card">
       <div class="kmap-title-row">
         <span>${formatEquationName(equation.name)}</span>
         <span>${formatExpression(equation.expression)}</span>
       </div>
-      <div class="mini-kmap${twoColumn}">
-        ${kmap.cells
-          .map((cell) => {
-            const className = cell.value === "1" ? "one" : cell.value === "X" ? "dc" : "";
-            return `
-              <div class="mini-kmap-cell ${className}" title="${cell.bits}">
-                <span class="minterm-label">m${Number.parseInt(cell.bits, 2)}</span>
-                <span>${cell.value === "X" ? "-" : cell.value}</span>
-              </div>
-            `;
-          })
-          .join("")}
-      </div>
+      ${renderOutputKMap(kmap)}
     </article>
+  `;
+}
+
+function renderOutputKMap(kmap) {
+  const displayMap = toHorizontalKMap(kmap);
+  const columnCount = displayMap.columnLabels.length;
+
+  return `
+    <div class="mini-kmap axis-kmap" style="--kmap-cols: ${columnCount}">
+      <div class="mini-kmap-corner">
+        <span class="corner-states">${formatKMapCornerVariables(displayMap.rowVariables)}</span>
+        <span class="corner-input">${escapeHtml(formatKMapVariableText(displayMap.columnVariable))}</span>
+      </div>
+      ${displayMap.columnLabels.map((label) => `<div class="mini-kmap-head">${escapeHtml(label)}</div>`).join("")}
+      ${displayMap.rowLabels
+        .map(
+          (rowLabel, rowIndex) => `
+            <div class="mini-kmap-head">${escapeHtml(rowLabel)}</div>
+            ${displayMap.columnLabels
+              .map((_, columnIndex) => {
+                const cell = displayMap.cells[rowIndex * columnCount + columnIndex] ?? { value: "0", bits: "" };
+                const value = cell.value === "X" ? "X" : cell.value;
+                const className = value === "1" ? "one" : value === "X" ? "dc" : "";
+                return `<div class="mini-kmap-cell ${className}" title="${escapeHtml(cell.bits)}">${escapeHtml(value)}</div>`;
+              })
+              .join("")}
+          `
+        )
+        .join("")}
+    </div>
   `;
 }
 

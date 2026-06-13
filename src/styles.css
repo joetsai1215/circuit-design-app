@@ -435,6 +435,50 @@ textarea:focus {
   grid-template-columns: repeat(2, minmax(44px, 1fr));
 }
 
+.mini-kmap.axis-kmap {
+  grid-template-columns: 68px repeat(var(--kmap-cols), minmax(48px, 1fr));
+  border: 1px solid #c5d3e4;
+  background: #c5d3e4;
+}
+
+.mini-kmap-corner,
+.mini-kmap-head {
+  min-height: 56px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  color: #64748b;
+  font-family: "Segoe UI", sans-serif;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.mini-kmap-corner {
+  position: relative;
+  overflow: hidden;
+  min-height: 70px;
+  background:
+    linear-gradient(45deg, transparent 49%, #475569 50%, transparent 51%),
+    #fff;
+}
+
+.mini-kmap-corner .corner-states {
+  left: 7px;
+  bottom: 12px;
+  max-width: none;
+  font-size: 15px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.mini-kmap-corner .corner-input {
+  right: 16px;
+  top: 8px;
+  font-size: 20px;
+  line-height: 1;
+}
+
 .mini-kmap-cell {
   min-height: 64px;
   position: relative;
@@ -452,7 +496,8 @@ textarea:focus {
 }
 
 .mini-kmap-cell.dc {
-  color: #4b5563;
+  background: #fff7ed;
+  color: #64748b;
 }
 
 .minterm-label {
