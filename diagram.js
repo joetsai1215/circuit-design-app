@@ -7,10 +7,11 @@ const TRACK = 18;
 const WIRE = "#71839a";
 const INK = "#253244";
 const SOURCE_X0 = 70;
-const SOURCE_X1 = 250;
+const SOURCE_X1 = 352;
 const GATE_X = 430;
 const OR_X = 640;
 const FF_X = 980;
+const INVERTED_X_RAIL_START = 216;
 
 export function resetDiagramView() {
   view = { x: 0, y: 0, scale: 1 };
@@ -85,7 +86,9 @@ function drawEquationLegend(ctx, equations) {
 
 function drawSourceRails(ctx, sourceRows, analysis) {
   for (const source of sourceRows.values()) {
-    line(ctx.wires, SOURCE_X0, source.y, SOURCE_X1, source.y);
+    if (source.name !== "X'") {
+      line(ctx.wires, SOURCE_X0, source.y, SOURCE_X1, source.y);
+    }
     text(ctx.labels, SOURCE_X0 - 14, source.y, source.label, "end", 15, true);
   }
 
@@ -99,19 +102,20 @@ function drawInputInverterIfNeeded(ctx, sourceRows) {
 
   const branchX = SOURCE_X0 + 54;
   const gateX = SOURCE_X0 + 82;
+  junction(ctx.dots, branchX, normal.y);
   polyline(ctx.wires, [
     [branchX, normal.y],
     [branchX, normal.y - 24],
     [gateX, normal.y - 24],
   ]);
-  junction(ctx.dots, branchX, normal.y);
   const inv = notGate(ctx.components, gateX, normal.y - 40, 34, 32);
   polyline(ctx.wires, [
     [inv.outX, inv.outY],
-    [inv.outX + 16, inv.outY],
-    [inv.outX + 16, inverted.y],
+    [INVERTED_X_RAIL_START, inv.outY],
+    [INVERTED_X_RAIL_START, inverted.y],
     [SOURCE_X1, inverted.y],
   ]);
+  junction(ctx.dots, INVERTED_X_RAIL_START, inverted.y);
 }
 
 function drawFeedbackWires(ctx, sourceRows, analysis) {
@@ -218,7 +222,7 @@ function routeLiteralToInput(ctx, literal, sourceRows, input, laneIndex, termInd
     throw new Error(`Diagram source missing for literal ${literal}.`);
   }
 
-  const branchX = snap(138 + source.branchCount * TRACK);
+  const branchX = snap(source.tapX + source.branchCount * TRACK);
   source.branchCount += 1;
   junction(ctx.dots, branchX, source.y);
 
@@ -229,6 +233,7 @@ function routeLiteralToInput(ctx, literal, sourceRows, input, laneIndex, termInd
     [input.x, approachY],
     [input.x, input.y],
   ]);
+  text(ctx.labels, input.x - 10, input.y - 8, formatEquationLiteral(literal), "end", 11, true);
 }
 
 function routeOutputToTarget(wires, output, target, laneIndex) {
@@ -281,9 +286,10 @@ function buildSourceRows(analysis) {
   ordered.forEach((name, index) => {
     rows.set(name, {
       name,
-      label: formatLiteral(name),
+      label: formatSourceLabel(name),
       y: snap(174 + index * 42),
-      branchCount: 0,
+      tapX: name === "X'" ? INVERTED_X_RAIL_START + TRACK : SOURCE_X0 + 54,
+      branchCount: name === "X" && used.has("X'") ? 1 : 0,
     });
   });
   return rows;
@@ -411,11 +417,19 @@ function formatExpression(expression) {
   return expression.replace(/Q\d+/g, (qName) => stateLabelMap.get(qName) ?? qName).replace(/\s+/g, "");
 }
 
-function formatLiteral(literal) {
+function formatEquationLiteral(literal) {
   const inverted = literal.endsWith("'");
   const base = inverted ? literal.slice(0, -1) : literal;
   const label = base.startsWith("Q") ? formatStateName(base) : base;
   return `${label}${inverted ? "'" : ""}`;
+}
+
+function formatSourceLabel(literal) {
+  const inverted = literal.endsWith("'");
+  const base = inverted ? literal.slice(0, -1) : literal;
+  if (!base.startsWith("Q")) return `${base}${inverted ? "'" : ""}`;
+  const label = formatStateName(base);
+  return inverted ? `Q'${label}` : `Q${label}`;
 }
 
 function formatStateName(name) {
