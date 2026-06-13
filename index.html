@@ -158,6 +158,113 @@
               <svg id="circuitSvg" role="img" aria-label="Sequential circuit diagram"></svg>
             </div>
           </section>
+
+          <section class="zone enhanced-tools-zone">
+            <div class="zone-header">
+              <span class="zone-index">6</span>
+              <h2>Output 3: Enhanced Analysis & Signal Simulator</h2>
+              <div class="diagram-tools">
+                <button class="icon-button" id="verifyEquationButton" type="button">Verify</button>
+                <button class="icon-button" id="optimizeAssignmentButton" type="button">Optimize Assignment</button>
+              </div>
+            </div>
+
+            <div class="enhanced-grid">
+              <article class="enhanced-card">
+                <div class="enhanced-card-header">
+                  <h3>Equation Verification</h3>
+                </div>
+                <div id="enhancedVerificationView" class="enhanced-panel">
+                  <div class="placeholder">Generate a circuit to verify equations against the state table.</div>
+                </div>
+              </article>
+
+              <article class="enhanced-card">
+                <div class="enhanced-card-header">
+                  <h3>State Assignment Optimizer</h3>
+                </div>
+                <div id="enhancedOptimizerView" class="enhanced-panel">
+                  <div class="placeholder">Try alternate state assignments and compare equation cost.</div>
+                </div>
+              </article>
+
+              <article class="enhanced-card wide-card">
+                <div class="enhanced-card-header">
+                  <h3>Derivation Tables & K-Maps</h3>
+                </div>
+                <div id="enhancedDerivationView" class="enhanced-panel">
+                  <div class="placeholder">Binary transitions, excitation values, and horizontal K-maps appear after generation.</div>
+                </div>
+              </article>
+
+              <article class="enhanced-card">
+                <div class="enhanced-card-header">
+                  <h3>Input Sequence Simulation</h3>
+                </div>
+                <div class="sequence-controls">
+                  <input id="sequenceInput" value="111010111" aria-label="Input sequence" />
+                  <button class="secondary-button" id="simulateSequenceButton" type="button">Simulate</button>
+                </div>
+                <div id="sequenceSimulationView" class="enhanced-panel">
+                  <div class="placeholder">Simulate a clock input sequence after generation.</div>
+                </div>
+              </article>
+
+              <article class="enhanced-card">
+                <div class="enhanced-card-header">
+                  <h3>Verilog Export</h3>
+                </div>
+                <textarea id="verilogOutput" spellcheck="false" readonly></textarea>
+              </article>
+
+              <article class="enhanced-card wide-card waveform-card">
+                <div class="enhanced-card-header">
+                  <h3>Interactive Waveform Signal Simulator</h3>
+                </div>
+                <div class="waveform-layout">
+                  <div class="waveform-controls">
+                    <fieldset>
+                      <legend>Waveform Type</legend>
+                      <label><input type="radio" name="waveformType" value="sine" checked /> Sine</label>
+                      <label><input type="radio" name="waveformType" value="square" /> Square</label>
+                      <label><input type="radio" name="waveformType" value="triangle" /> Triangle</label>
+                      <label><input type="radio" name="waveformType" value="sawtooth" /> Sawtooth</label>
+                    </fieldset>
+
+                    <div class="control-pair">
+                      <label for="frequencySlider">Frequency <span id="frequencyLabel">5.0 Hz</span></label>
+                      <input id="frequencySlider" type="range" min="0" max="10" step="0.1" value="5" />
+                      <input id="frequencyInput" type="number" min="0" max="10" step="0.1" value="5" />
+                    </div>
+
+                    <div class="control-pair">
+                      <label for="amplitudeSlider">Amplitude <span id="amplitudeLabel">1.00</span></label>
+                      <input id="amplitudeSlider" type="range" min="0" max="1" step="0.01" value="1" />
+                      <input id="amplitudeInput" type="number" min="0" max="1" step="0.01" value="1" />
+                    </div>
+
+                    <div class="control-pair">
+                      <label for="phaseSlider">Phase <span id="phaseLabel">1pi</span></label>
+                      <input id="phaseSlider" type="range" min="0" max="6.283185307" step="0.261799388" value="3.141592654" />
+                      <input id="phaseInput" type="number" min="0" max="6.283185307" step="0.261799388" value="3.141592654" />
+                    </div>
+
+                    <div class="playback-row">
+                      <button class="secondary-button" id="waveReset" type="button">Reset</button>
+                      <button class="secondary-button" id="wavePlay" type="button">Play</button>
+                      <button class="secondary-button" id="wavePause" type="button">Pause</button>
+                    </div>
+                  </div>
+
+                  <div class="waveform-display">
+                    <div class="math-expression" id="mathExpression"></div>
+                    <div class="summary-panel" id="summaryPanel"></div>
+                    <canvas id="waveformCanvas" width="1100" height="520" aria-label="Animated waveform plot"></canvas>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </section>
         </section>
       </section>
     </main>

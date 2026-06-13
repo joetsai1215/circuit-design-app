@@ -2,6 +2,16 @@ let view = { x: 0, y: 0, scale: 1 };
 let drag = null;
 let stateLabelMap = new Map();
 
+const GRID = 12;
+const TRACK = 18;
+const WIRE = "#71839a";
+const INK = "#253244";
+const SOURCE_X0 = 70;
+const SOURCE_X1 = 250;
+const GATE_X = 430;
+const OR_X = 640;
+const FF_X = 980;
+
 export function resetDiagramView() {
   view = { x: 0, y: 0, scale: 1 };
 }
@@ -32,170 +42,351 @@ export function bindDiagramPan(svg) {
 export function renderCircuitDiagram(svg, analysis) {
   if (!analysis) return;
 
+  const equations = analysis.equations;
+  const sourceRows = buildSourceRows(analysis);
+  const laneGap = 132;
+  const laneStartY = snap(240);
+  const logicHeight = laneStartY + equations.length * laneGap + 130;
+  const sourceHeight = 168 + sourceRows.size * 42;
+  const height = Math.max(760, logicHeight, sourceHeight + 150);
+  const clockY = snap(height - 58);
+
   svg.innerHTML = "";
-  svg.setAttribute("viewBox", "0 0 1180 760");
+  svg.setAttribute("viewBox", `0 0 1220 ${height}`);
   stateLabelMap = new Map(analysis.variables.state.map((name, index) => [name, String.fromCharCode(65 + index)]));
 
-  const defs = createSvgElement("defs");
-  defs.innerHTML = `
-    <marker id="dot" markerWidth="8" markerHeight="8" refX="4" refY="4">
-      <circle cx="4" cy="4" r="3.5" fill="#253244"></circle>
-    </marker>
-  `;
-  svg.appendChild(defs);
-
   const root = createSvgElement("g", { id: "viewportRoot" });
+  const wires = createSvgElement("g", { id: "wireLayer" });
+  const components = createSvgElement("g", { id: "componentLayer" });
+  const labels = createSvgElement("g", { id: "labelLayer" });
+  const dots = createSvgElement("g", { id: "junctionLayer" });
+  root.append(wires, components, labels, dots);
   svg.appendChild(root);
 
-  drawInputRails(root, analysis);
-  drawEquationLogic(root, analysis);
-  drawFlipFlops(root, analysis);
-  drawOutputLogic(root, analysis);
-  drawClock(root);
+  drawEquationLegend({ wires, labels }, analysis.equations);
+  drawSourceRails({ wires, components, labels, dots }, sourceRows, analysis);
+  const ffMap = drawFlipFlops({ wires, components, labels, dots }, analysis, clockY);
+  drawEquations({ wires, components, labels, dots }, analysis, sourceRows, ffMap, laneStartY, laneGap);
+  drawClock({ wires, labels, dots }, ffMap, clockY);
 
   applyView(svg);
 }
 
-function drawInputRails(root, analysis) {
-  const railColor = "#7b8da5";
-  const rails = [
-    { name: "X", y: 120 },
-    { name: "X'", y: 168 },
-    ...analysis.variables.state.map((name, index) => ({ name: formatStateName(name), y: 235 + index * 58 })),
-  ];
-
-  rails.forEach((rail) => {
-    line(root, 58, rail.y, 1040, rail.y, railColor, 1.7);
-    text(root, 44, rail.y, rail.name, "end", 16, true);
-  });
-
-  notGate(root, 118, 104);
-  line(root, 58, 120, 118, 120, railColor, 1.7);
-  line(root, 152, 120, 185, 120, railColor, 1.7);
-  line(root, 185, 120, 185, 168, railColor, 1.7);
-  nodeDot(root, 185, 168);
-}
-
-function drawEquationLogic(root, analysis) {
-  const equations = analysis.graph.equations;
-  const startY = 96;
-  const rowGap = equations.length <= 3 ? 118 : 84;
-
+function drawEquationLegend(ctx, equations) {
+  text(ctx.labels, 72, 40, "Simplified Equations", "start", 16, false);
   equations.forEach((equation, index) => {
-    const y = startY + index * rowGap;
-    const terms = splitTerms(equation.expression);
-    const gate = terms.length > 1 ? orGate(root, 650, y) : andGate(root, 650, y + 8);
-    text(root, 632, y - 30, `${formatEquationName(equation.name)} = ${formatExpression(equation.expression)}`, "middle", 16, true);
-
-    drawTermInputs(root, terms, gate.x, y, index);
-    const target = flipFlopInputPoint(equation.name, analysis);
-    orthogonal(root, gate.outX, gate.outY, target.x, target.y);
+    const x = 72 + (index % 3) * 350;
+    const y = 74 + Math.floor(index / 3) * 28;
+    text(ctx.labels, x, y, `${formatEquationName(equation.name)} = ${formatExpression(equation.expression)}`, "start", 15, true);
   });
+  line(ctx.wires, 56, 126, 1160, 126, "#d8e0ea", 1.2);
 }
 
-function drawFlipFlops(root, analysis) {
-  const ffPositions = flipFlopPositions(analysis);
-  ffPositions.forEach((ff) => {
-    flipFlop(root, ff.x, ff.y, ff);
-    line(root, ff.x + 140, ff.y + 42, 1100, ff.y + 42, "#7b8da5", 1.7);
-    nodeDot(root, 1100, ff.y + 42);
-    text(root, 1110, ff.y + 42, formatStateName(ff.name), "start", 16, true);
-  });
-}
-
-function drawOutputLogic(root, analysis) {
-  const outputEquation = analysis.graph.output;
-  const terms = splitTerms(outputEquation.expression);
-  const baseY = 565;
-  const andOutputs = [];
-
-  text(root, 628, baseY - 92, `Z = ${formatExpression(outputEquation.expression)}`, "middle", 17, true);
-
-  terms.forEach((term, index) => {
-    const y = baseY + index * 48;
-    const gate = andGate(root, 492, y);
-    drawLiteralFanIn(root, term, gate.x, gate.y, index + 8);
-    andOutputs.push(gate);
-  });
-
-  const outputGate = terms.length > 1 ? orGate(root, 710, baseY + 45) : andGate(root, 710, baseY + 45);
-  andOutputs.forEach((gate) => orthogonal(root, gate.outX, gate.outY, outputGate.x, outputGate.y + 18));
-  line(root, outputGate.outX, outputGate.outY, 920, outputGate.outY, "#7b8da5", 1.8);
-  text(root, 932, outputGate.outY, "Z", "start", 17, true);
-}
-
-function drawClock(root) {
-  const y = 720;
-  line(root, 58, y, 1090, y, "#7b8da5", 1.8);
-  text(root, 42, y, "CLK", "end", 16, true);
-  text(root, 1110, y, "CLK", "start", 16, true);
-  nodeDot(root, 940, y);
-}
-
-function drawTermInputs(root, terms, targetX, targetY, offset) {
-  if (terms.length === 1) {
-    drawLiteralFanIn(root, terms[0], targetX, targetY + 8, offset);
-    return;
+function drawSourceRails(ctx, sourceRows, analysis) {
+  for (const source of sourceRows.values()) {
+    line(ctx.wires, SOURCE_X0, source.y, SOURCE_X1, source.y);
+    text(ctx.labels, SOURCE_X0 - 14, source.y, source.label, "end", 15, true);
   }
 
-  terms.slice(0, 3).forEach((term, index) => {
-    const mini = andGate(root, 430, targetY - 34 + index * 34, 44, 26);
-    drawLiteralFanIn(root, term, mini.x, mini.y, offset + index);
-    orthogonal(root, mini.outX, mini.outY, targetX, targetY + 10 + index * 12);
+  drawInputInverterIfNeeded(ctx, sourceRows);
+}
+
+function drawInputInverterIfNeeded(ctx, sourceRows) {
+  const normal = sourceRows.get("X");
+  const inverted = sourceRows.get("X'");
+  if (!normal || !inverted) return;
+
+  const branchX = SOURCE_X0 + 54;
+  const gateX = SOURCE_X0 + 82;
+  polyline(ctx.wires, [
+    [branchX, normal.y],
+    [branchX, normal.y - 24],
+    [gateX, normal.y - 24],
+  ]);
+  const inv = notGate(ctx.components, gateX, normal.y - 40, 34, 32);
+  polyline(ctx.wires, [
+    [inv.outX, inv.outY],
+    [inv.outX + 16, inv.outY],
+    [inv.outX + 16, inverted.y],
+    [SOURCE_X1, inverted.y],
+  ]);
+}
+
+function drawFeedbackWires(ctx, sourceRows, analysis) {
+  const ffPositions = flipFlopPositions(analysis);
+  analysis.variables.state.forEach((qName, index) => {
+    const stateSource = sourceRows.get(qName);
+    const invertedSource = sourceRows.get(`${qName}'`);
+    const ff = ffPositions.find((item) => item.name === qName);
+    if (!ff) return;
+
+    if (stateSource) {
+      const trackY = snap(48 + index * TRACK);
+      const trackX = snap(SOURCE_X0 + 12 + index * TRACK);
+      polyline(ctx.wires, [
+        [ff.x + ff.width, ff.y + 36],
+        [1160, ff.y + 36],
+        [1160, trackY],
+        [trackX, trackY],
+        [trackX, stateSource.y],
+        [SOURCE_X1, stateSource.y],
+      ]);
+    }
+
+    if (invertedSource) {
+      const trackY = snap(72 + index * TRACK);
+      const trackX = snap(SOURCE_X0 + 32 + index * TRACK);
+      polyline(ctx.wires, [
+        [ff.x + ff.width, ff.y + 72],
+        [1176, ff.y + 72],
+        [1176, trackY],
+        [trackX, trackY],
+        [trackX, invertedSource.y],
+        [SOURCE_X1, invertedSource.y],
+      ]);
+    }
   });
 }
 
-function drawLiteralFanIn(root, term, targetX, targetY, offset) {
+function drawEquations(ctx, analysis, sourceRows, ffMap, laneStartY, laneGap) {
+  analysis.equations.forEach((equation, laneIndex) => {
+    const laneY = snap(laneStartY + laneIndex * laneGap);
+    const output = drawExpressionNetwork(ctx, equation.expression, sourceRows, laneY, laneIndex);
+    const target = getEquationTarget(equation, ffMap, laneY);
+    routeOutputToTarget(ctx.wires, output, target, laneIndex);
+    if (target.kind === "output") {
+      text(ctx.labels, target.x + 14, target.y, "Z", "start", 16, true);
+    }
+  });
+}
+
+function drawExpressionNetwork(ctx, expression, sourceRows, laneY, laneIndex) {
+  if (expression === "0" || expression === "1") {
+    const constant = constantNode(ctx.components, ctx.labels, GATE_X, laneY - 16, expression);
+    return { x: constant.outX, y: constant.outY };
+  }
+
+  const terms = splitTerms(expression);
+  if (terms.length === 1) {
+    return drawProductTerm(ctx, terms[0], sourceRows, laneY, laneIndex, 0);
+  }
+
+  const orGateHeight = Math.max(58, terms.length * 24 + 18);
+  const or = orGate(ctx.components, OR_X, laneY - orGateHeight / 2, 96, orGateHeight, terms.length);
+  terms.forEach((term, termIndex) => {
+    const termY = snap(laneY - ((terms.length - 1) * 36) / 2 + termIndex * 36);
+    const product = drawProductTerm(ctx, term, sourceRows, termY, laneIndex, termIndex);
+    const input = or.inputs[termIndex];
+    const routeX = snap(OR_X - 42 - termIndex * TRACK);
+    polyline(ctx.wires, [
+      [product.x, product.y],
+      [routeX, product.y],
+      [routeX, input.y],
+      [input.x, input.y],
+    ]);
+  });
+
+  return { x: or.outX, y: or.outY };
+}
+
+function drawProductTerm(ctx, term, sourceRows, y, laneIndex, termIndex) {
   const literals = parseLiterals(term);
-  const rails = {
-    X: 120,
-    "X'": 168,
-    B: 235,
-    "B'": 235,
-    A: 293,
-    "A'": 293,
-    Q1: 235,
-    Q0: 293,
-  };
+  if (term === "1" || term === "0") {
+    const constant = constantNode(ctx.components, ctx.labels, GATE_X, y - 16, term);
+    return { x: constant.outX, y: constant.outY };
+  }
 
-  literals.slice(0, 3).forEach((literal, index) => {
-    const y = rails[literal] ?? 120;
-    const xBreak = 255 + offset * 12 + index * 22;
-    line(root, xBreak, y, xBreak, targetY + index * 9, "#7b8da5", 1.4);
-    line(root, xBreak, targetY + index * 9, targetX, targetY + index * 9, "#7b8da5", 1.4);
-    nodeDot(root, xBreak, y);
+  if (literals.length === 1) {
+    const buffer = bufferGate(ctx.components, GATE_X, y - 18, 46, 36);
+    routeLiteralToInput(ctx, literals[0], sourceRows, buffer.input, laneIndex, termIndex, 0);
+    return { x: buffer.outX, y: buffer.outY };
+  }
+
+  const gateHeight = Math.max(44, literals.length * 18 + 16);
+  const gate = andGate(ctx.components, GATE_X, y - gateHeight / 2, 74, gateHeight, literals.length);
+  literals.forEach((literal, literalIndex) => {
+    routeLiteralToInput(ctx, literal, sourceRows, gate.inputs[literalIndex], laneIndex, termIndex, literalIndex);
   });
+  return { x: gate.outX, y: gate.outY };
 }
 
-function flipFlop(root, x, y, ff) {
-  rect(root, x, y, 140, 106, "#ffffff", "#7b8da5", 1.8);
-  const inputNames = ff.type === "JK" ? [`J_${formatStateName(ff.name)}`, `K_${formatStateName(ff.name)}`] : [`T_${formatStateName(ff.name)}`];
-  inputNames.forEach((name, index) => {
-    text(root, x + 18, y + 34 + index * 34, name, "start", 15, true);
+function routeLiteralToInput(ctx, literal, sourceRows, input, laneIndex, termIndex, literalIndex) {
+  const source = sourceRows.get(literal);
+  if (!source) return;
+
+  const branchX = snap(138 + source.branchCount * TRACK);
+  source.branchCount += 1;
+  junction(ctx.dots, branchX, source.y);
+
+  const approachY = snap(input.y + literalIndex * 2);
+  polyline(ctx.wires, [
+    [branchX, source.y],
+    [branchX, approachY],
+    [input.x, approachY],
+    [input.x, input.y],
+  ]);
+}
+
+function routeOutputToTarget(wires, output, target, laneIndex) {
+  const trackX = target.kind === "ff" ? snap(FF_X - 72 - laneIndex * 6) : snap(910 + laneIndex * TRACK);
+  polyline(wires, [
+    [output.x, output.y],
+    [trackX, output.y],
+    [trackX, target.y],
+    [target.x, target.y],
+  ]);
+}
+
+function drawFlipFlops(ctx, analysis, clockY) {
+  const positions = flipFlopPositions(analysis);
+  const map = new Map();
+  positions.forEach((ff) => {
+    flipFlop(ctx, ff.x, ff.y, ff);
+    map.set(ff.name, ff);
   });
-  text(root, x + 100, y + 38, `Q_${formatStateName(ff.name)}`, "start", 15, true);
-  text(root, x + 100, y + 72, `Q'_${formatStateName(ff.name)}`, "start", 15, true);
-  path(root, `M ${x + 62} ${y + 106} L ${x + 72} ${y + 94} L ${x + 82} ${y + 106}`, "#7b8da5", "none", 1.6);
-  text(root, x + 70, y + 116, "CLK", "middle", 11, false);
-  line(root, 940, 720, x + 70, y + 106, "#7b8da5", 1.4);
+  return map;
+}
+
+function drawClock(ctx, ffMap, clockY) {
+  line(ctx.wires, SOURCE_X0, clockY, 1120, clockY);
+  text(ctx.labels, SOURCE_X0 - 14, clockY, "CLK", "end", 15, true);
+  text(ctx.labels, 1138, clockY, "CLK", "start", 15, true);
+
+  for (const ff of ffMap.values()) {
+    const x = ff.x + ff.width / 2;
+    junction(ctx.dots, x, clockY);
+    polyline(ctx.wires, [
+      [x, clockY],
+      [x, ff.y + ff.height],
+    ]);
+  }
+}
+
+function buildSourceRows(analysis) {
+  const used = new Set();
+  analysis.equations.forEach((equation) => {
+    parseLiterals(equation.expression).forEach((literal) => used.add(literal));
+  });
+  used.add("X");
+  analysis.variables.state.forEach((name) => used.add(name));
+
+  const ordered = ["X", "X'", ...analysis.variables.state.flatMap((name) => [name, `${name}'`])].filter((name) =>
+    used.has(name)
+  );
+  const rows = new Map();
+  ordered.forEach((name, index) => {
+    rows.set(name, {
+      name,
+      label: formatLiteral(name),
+      y: snap(174 + index * 42),
+      branchCount: 0,
+    });
+  });
+  return rows;
+}
+
+function getEquationTarget(equation, ffMap, laneY) {
+  if (equation.type === "output") {
+    return { kind: "output", x: 1100, y: laneY };
+  }
+
+  const ffName = equation.name.match(/Q\d+$/)?.[0];
+  const ff = ffMap.get(ffName);
+  if (!ff) return { kind: "output", x: 1100, y: laneY };
+
+  if (equation.name.startsWith("K")) return { kind: "ff", x: ff.x, y: ff.y + 70 };
+  if (equation.name.startsWith("T")) return { kind: "ff", x: ff.x, y: ff.y + 52 };
+  return { kind: "ff", x: ff.x, y: ff.y + 34 };
 }
 
 function flipFlopPositions(analysis) {
-  const startY = analysis.graph.flipFlops.length === 1 ? 292 : 245;
+  const startY = snap(166);
   return analysis.graph.flipFlops.map((ff, index) => ({
     ...ff,
-    type: ff.type,
-    x: 875,
-    y: startY + index * 150,
+    x: FF_X,
+    y: startY + index * 178,
+    width: 150,
+    height: 108,
   }));
 }
 
-function flipFlopInputPoint(equationName, analysis) {
-  const ffName = equationName.match(/Q\d+$/)?.[0] ?? analysis.graph.flipFlops[0].name;
-  const ff = flipFlopPositions(analysis).find((item) => item.name === ffName) ?? flipFlopPositions(analysis)[0];
-  const isK = equationName.startsWith("K");
-  const isT = equationName.startsWith("T");
-  return { x: ff.x, y: ff.y + (isT ? 42 : isK ? 68 : 34) };
+function flipFlop(ctx, x, y, ff) {
+  rect(ctx.components, x, y, ff.width, ff.height, "#ffffff", WIRE, 1.8);
+  const label = formatStateName(ff.name);
+  const inputs = ff.type === "JK" ? [`J${label}`, `K${label}`] : [`T${label}`];
+  inputs.forEach((name, index) => text(ctx.labels, x + 18, y + (ff.type === "JK" ? 34 + index * 36 : 52), name, "start", 14, true));
+  text(ctx.labels, x + 102, y + 36, `Q${label}`, "start", 14, true);
+  text(ctx.labels, x + 102, y + 72, `Q'${label}`, "start", 14, true);
+  line(ctx.wires, x + ff.width, y + 36, x + ff.width + 42, y + 36);
+  line(ctx.wires, x + ff.width, y + 72, x + ff.width + 42, y + 72);
+  text(ctx.labels, x + ff.width + 52, y + 36, `Q${label}`, "start", 13, true);
+  text(ctx.labels, x + ff.width + 52, y + 72, `Q'${label}`, "start", 13, true);
+  path(ctx.components, `M ${x + 65} ${y + ff.height} L ${x + 75} ${y + ff.height - 12} L ${x + 85} ${y + ff.height}`, WIRE, "none", 1.5);
+  text(ctx.labels, x + 75, y + ff.height + 14, "CLK", "middle", 11, false);
+}
+
+function andGate(components, x, y, width, height, inputCount) {
+  const d = [
+    `M ${x} ${y}`,
+    `L ${x + width / 2} ${y}`,
+    `C ${x + width} ${y}, ${x + width} ${y + height}, ${x + width / 2} ${y + height}`,
+    `L ${x} ${y + height}`,
+    "Z",
+  ].join(" ");
+  path(components, d, WIRE, "#ffffff", 1.7);
+  return {
+    x,
+    y,
+    width,
+    height,
+    inputs: inputPins(x, y, height, inputCount),
+    outX: x + width,
+    outY: y + height / 2,
+  };
+}
+
+function orGate(components, x, y, width, height, inputCount) {
+  const d = [
+    `M ${x} ${y}`,
+    `C ${x + 28} ${y + 10}, ${x + 28} ${y + height - 10}, ${x} ${y + height}`,
+    `C ${x + 44} ${y + height - 8}, ${x + width - 22} ${y + height - 5}, ${x + width} ${y + height / 2}`,
+    `C ${x + width - 22} ${y + 5}, ${x + 44} ${y + 8}, ${x} ${y}`,
+  ].join(" ");
+  path(components, d, WIRE, "#ffffff", 1.8);
+  return {
+    x,
+    y,
+    width,
+    height,
+    inputs: inputPins(x + 5, y, height, inputCount),
+    outX: x + width,
+    outY: y + height / 2,
+  };
+}
+
+function bufferGate(components, x, y, width, height) {
+  path(components, `M ${x} ${y} L ${x} ${y + height} L ${x + width} ${y + height / 2} Z`, WIRE, "#ffffff", 1.6);
+  return { input: { x, y: y + height / 2 }, outX: x + width, outY: y + height / 2 };
+}
+
+function notGate(components, x, y, width, height) {
+  path(components, `M ${x} ${y} L ${x} ${y + height} L ${x + width} ${y + height / 2} Z`, WIRE, "#ffffff", 1.6);
+  circle(components, x + width + 6, y + height / 2, 4, "#ffffff", WIRE, 1.5);
+  return { outX: x + width + 10, outY: y + height / 2 };
+}
+
+function constantNode(components, labels, x, y, value) {
+  const label = value === "1" ? "VCC" : "GND";
+  rect(components, x, y, 62, 32, "#ffffff", WIRE, 1.5);
+  text(labels, x + 31, y + 16, label, "middle", 14, true);
+  return { outX: x + 62, outY: y + 16 };
+}
+
+function inputPins(x, y, height, count) {
+  return Array.from({ length: count }, (_, index) => ({
+    x,
+    y: y + ((index + 1) * height) / (count + 1),
+  }));
 }
 
 function splitTerms(expression) {
@@ -204,8 +395,8 @@ function splitTerms(expression) {
 }
 
 function parseLiterals(term) {
-  if (term === "0" || term === "1") return ["X"];
-  return term.match(/Q\d+'?|X'?/g)?.map((literal) => formatExpression(literal).replaceAll(" ", "")) ?? ["X"];
+  if (term === "0" || term === "1") return [];
+  return term.match(/Q\d+'?|X'?/g) ?? [];
 }
 
 function formatEquationName(name) {
@@ -216,79 +407,69 @@ function formatExpression(expression) {
   return expression.replace(/Q\d+/g, (qName) => stateLabelMap.get(qName) ?? qName).replace(/\s+/g, "");
 }
 
+function formatLiteral(literal) {
+  const inverted = literal.endsWith("'");
+  const base = inverted ? literal.slice(0, -1) : literal;
+  const label = base.startsWith("Q") ? formatStateName(base) : base;
+  return `${label}${inverted ? "'" : ""}`;
+}
+
 function formatStateName(name) {
   return stateLabelMap.get(name) ?? name;
 }
 
-function orGate(root, x, y, width = 92, height = 58) {
-  const d = [
-    `M ${x} ${y}`,
-    `C ${x + 30} ${y + 10}, ${x + 30} ${y + height - 10}, ${x} ${y + height}`,
-    `C ${x + 44} ${y + height - 8}, ${x + width - 22} ${y + height - 5}, ${x + width} ${y + height / 2}`,
-    `C ${x + width - 22} ${y + 5}, ${x + 44} ${y + 8}, ${x} ${y}`,
-  ].join(" ");
-  path(root, d, "#7b8da5", "#ffffff", 1.8);
-  return { x, y, outX: x + width, outY: y + height / 2 };
+function snap(value) {
+  return Math.round(value / GRID) * GRID;
 }
 
-function andGate(root, x, y, width = 70, height = 42) {
-  const d = [
-    `M ${x} ${y}`,
-    `L ${x + width / 2} ${y}`,
-    `C ${x + width} ${y}, ${x + width} ${y + height}, ${x + width / 2} ${y + height}`,
-    `L ${x} ${y + height}`,
-    "Z",
-  ].join(" ");
-  path(root, d, "#7b8da5", "#ffffff", 1.7);
-  return { x, y, outX: x + width, outY: y + height / 2 };
-}
-
-function notGate(root, x, y) {
-  path(root, `M ${x} ${y} L ${x} ${y + 32} L ${x + 34} ${y + 16} Z`, "#7b8da5", "#ffffff", 1.7);
-  circle(root, x + 40, y + 16, 4, "#ffffff", "#7b8da5", 1.5);
-}
-
-function orthogonal(root, x1, y1, x2, y2) {
-  const mid = (x1 + x2) / 2;
-  path(root, `M ${x1} ${y1} L ${mid} ${y1} L ${mid} ${y2} L ${x2} ${y2}`, "#7b8da5", "none", 1.6);
-}
-
-function line(root, x1, y1, x2, y2, stroke = "#7b8da5", width = 1.5) {
-  const element = createSvgElement("line", { x1, y1, x2, y2, stroke, "stroke-width": width });
-  root.appendChild(element);
-}
-
-function rect(root, x, y, width, height, fill, stroke, strokeWidth) {
-  root.appendChild(createSvgElement("rect", { x, y, width, height, fill, stroke, "stroke-width": strokeWidth }));
-}
-
-function circle(root, cx, cy, r, fill, stroke, strokeWidth) {
-  root.appendChild(createSvgElement("circle", { cx, cy, r, fill, stroke, "stroke-width": strokeWidth }));
-}
-
-function nodeDot(root, cx, cy) {
-  circle(root, cx, cy, 3, "#253244", "#253244", 1);
-}
-
-function path(root, d, stroke, fill, strokeWidth) {
-  const element = createSvgElement("path", {
-    d,
-    fill,
+function polyline(root, points, stroke = WIRE, width = 1.5) {
+  const element = createSvgElement("polyline", {
+    points: points.map(([x, y]) => `${snap(x)},${snap(y)}`).join(" "),
+    fill: "none",
     stroke,
-    "stroke-width": strokeWidth,
+    "stroke-width": width,
     "stroke-linejoin": "round",
     "stroke-linecap": "round",
   });
   root.appendChild(element);
 }
 
+function line(root, x1, y1, x2, y2, stroke = WIRE, width = 1.5) {
+  root.appendChild(createSvgElement("line", { x1: snap(x1), y1: snap(y1), x2: snap(x2), y2: snap(y2), stroke, "stroke-width": width }));
+}
+
+function rect(root, x, y, width, height, fill, stroke, strokeWidth) {
+  root.appendChild(createSvgElement("rect", { x: snap(x), y: snap(y), width, height, fill, stroke, "stroke-width": strokeWidth }));
+}
+
+function circle(root, cx, cy, r, fill, stroke, strokeWidth) {
+  root.appendChild(createSvgElement("circle", { cx: snap(cx), cy: snap(cy), r, fill, stroke, "stroke-width": strokeWidth }));
+}
+
+function junction(root, cx, cy) {
+  circle(root, cx, cy, 3, INK, INK, 1);
+}
+
+function path(root, d, stroke, fill, strokeWidth) {
+  root.appendChild(
+    createSvgElement("path", {
+      d,
+      fill,
+      stroke,
+      "stroke-width": strokeWidth,
+      "stroke-linejoin": "round",
+      "stroke-linecap": "round",
+    })
+  );
+}
+
 function text(root, x, y, value, anchor = "start", size = 14, italic = false) {
   const node = createSvgElement("text", {
-    x,
-    y,
+    x: snap(x),
+    y: snap(y),
     "text-anchor": anchor,
     "dominant-baseline": "middle",
-    fill: "#253244",
+    fill: INK,
     "font-size": size,
     "font-weight": italic ? 700 : 500,
     "font-family": italic ? "Georgia, Times New Roman, serif" : "Segoe UI, sans-serif",

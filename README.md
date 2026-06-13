@@ -15,6 +15,12 @@ This is the first runnable web prototype for a sequential circuit design automat
 - Flip-flop excitation equation generation
 - K-map data display
 - SVG circuit diagram with zoom and pan
+- Equation self-verification against the generated transition table
+- Step-by-step binary transition / excitation tables
+- Horizontal K-map derivation view with don't-care terms shown as `X`
+- State-assignment optimizer for comparing simpler equation costs
+- Input sequence simulation and Verilog export
+- Interactive waveform signal simulator with live formula updates, grid plot, and playback controls
 
 ## Run Locally
 
