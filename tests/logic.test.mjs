@@ -35,6 +35,28 @@ assert.deepEqual(
   }
 );
 
+const textbookRows = [
+  { state: "A", next0: "B", out0: "1", next1: "C", out1: "1" },
+  { state: "B", next0: "A", out0: "1", next1: "B", out1: "0" },
+  { state: "C", next0: "B", out0: "1", next1: "A", out1: "0" },
+];
+const textbookJk = analyzeCircuit(textbookRows, "mealy", "jk", {
+  assignment: { A: "11", B: "10", C: "01" },
+});
+assert.deepEqual(
+  Object.fromEntries(textbookJk.equations.map((equation) => [equation.name, equation.expression])),
+  {
+    JQ1: "1",
+    KQ1: "Q0X",
+    JQ0: "X'",
+    KQ0: "X'",
+    Z: "Q1Q0 + X'",
+  }
+);
+assertEquationsReconstructStateTable(textbookRows, "mealy", "jk", {
+  assignment: { A: "11", B: "10", C: "01" },
+});
+
 for (const model of ["mealy", "moore"]) {
   for (const ffType of ["jk", "t"]) {
     const rows = model === "mealy" ? examples.mealyThreeOnes.rows : examples.mooreThreeOnes.rows;
@@ -54,8 +76,8 @@ for (const stateCount of [1, 2, 3, 4, 5, 6]) {
 
 console.log("logic tests passed");
 
-function assertEquationsReconstructStateTable(rows, model, ffType) {
-  const analysis = analyzeCircuit(rows, model, ffType);
+function assertEquationsReconstructStateTable(rows, model, ffType, options = {}) {
+  const analysis = analyzeCircuit(rows, model, ffType, options);
   const equations = Object.fromEntries(analysis.equations.map((equation) => [equation.name, equation.expression]));
 
   for (const transition of analysis.transitions) {

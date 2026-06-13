@@ -11,7 +11,7 @@ This is the first runnable web prototype for a sequential circuit design automat
 - Editable state table
 - Local example parser for the "three or more consecutive 1s" problem
 - Optional OpenAI API key input for real AI text-to-state-table parsing
-- Automatic state assignment
+- Editable state assignment, with automatic assignment as the default
 - Flip-flop excitation equation generation
 - K-map data display
 - SVG circuit diagram with zoom and pan
@@ -39,7 +39,7 @@ Pipeline:
 ```text
 state table
 → validation
-→ state assignment
+→ editable/custom state assignment
 → transition expansion
 → flip-flop excitation table
 → SOP simplification

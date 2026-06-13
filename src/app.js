@@ -1,4 +1,4 @@
-import { analyzeCircuit, examples, parseDescriptionToTable } from "./logic.js";
+import { analyzeCircuit, assignStates, examples, parseDescriptionToTable } from "./logic.js";
 import { bindDiagramPan, renderCircuitDiagram, resetDiagramView, zoomDiagram } from "./diagram.js";
 import { parseStateTableWithOpenAI } from "./openaiParser.js";
 
@@ -6,6 +6,7 @@ const state = {
   modelType: "mealy",
   ffType: "jk",
   rows: structuredClone(examples.mealyThreeOnes.rows),
+  assignment: {},
   analysis: null,
 };
 
@@ -33,6 +34,7 @@ function init() {
     input.addEventListener("change", () => {
       state.modelType = input.value;
       state.rows = structuredClone(state.modelType === "moore" ? examples.mooreThreeOnes.rows : examples.mealyThreeOnes.rows);
+      resetAssignmentFromRows();
       renderBadges();
       renderStateTable();
       clearResults("Model changed. Example table loaded.");
@@ -53,12 +55,14 @@ function init() {
 
   document.querySelector("#clearTableButton").addEventListener("click", () => {
     state.rows = [];
+    state.assignment = {};
     renderStateTable();
     clearResults("Table cleared.");
   });
 
   document.querySelector("#loadExampleButton").addEventListener("click", () => {
     state.rows = structuredClone(state.modelType === "moore" ? examples.mooreThreeOnes.rows : examples.mealyThreeOnes.rows);
+    resetAssignmentFromRows();
     renderStateTable();
     clearResults("Example loaded.");
   });
@@ -70,6 +74,7 @@ function init() {
         ? { state: nextName, next0: nextName, out0: "0", next1: nextName, out1: "0" }
         : { state: nextName, output: "0", next0: nextName, next1: nextName }
     );
+    syncAssignmentFromRows();
     renderStateTable();
     clearResults("State added.");
   });
@@ -109,6 +114,7 @@ function init() {
 
   bindDiagramPan(els.circuitSvg);
   loadApiSettings();
+  resetAssignmentFromRows();
   renderBadges();
   renderStateTable();
   renderEmptyResults();
@@ -170,16 +176,23 @@ function renderStateTable() {
     input.addEventListener("input", () => {
       const rowIndex = Number(input.dataset.row);
       state.rows[rowIndex][input.dataset.key] = input.value;
+      if (input.dataset.key === "state") {
+        syncAssignmentFromRows();
+        renderAssignmentEditor();
+      }
       clearResults("Table edited.");
     });
   });
 
-  els.assignmentTable.innerHTML = '<span class="placeholder">Assignments appear after generation.</span>';
+  renderAssignmentEditor();
 }
 
 function generateCircuit() {
   try {
-    state.analysis = analyzeCircuit(readRowsFromTable(), state.modelType, state.ffType);
+    state.analysis = analyzeCircuit(readRowsFromTable(), state.modelType, state.ffType, {
+      assignment: readAssignmentFromEditor(),
+    });
+    state.assignment = state.analysis.assignment;
     renderAnalysis();
     setStatus("Circuit generated.");
   } catch (error) {
@@ -200,6 +213,7 @@ async function parseTextDescription() {
   if (!apiKey) {
     try {
       state.rows = parseDescriptionToTable(problemText, state.modelType);
+      resetAssignmentFromRows();
       renderStateTable();
       clearResults("Parsed by local example parser. Add an API key for open-ended AI parsing.");
     } catch (error) {
@@ -219,6 +233,7 @@ async function parseTextDescription() {
       modelType: state.modelType,
     });
     state.rows = result.rows;
+    resetAssignmentFromRows();
     renderStateTable();
     clearResults(result.notes ? `AI parsed: ${result.notes}` : "AI parsed state table.");
   } catch (error) {
@@ -226,6 +241,69 @@ async function parseTextDescription() {
   } finally {
     document.querySelector("#parseTextButton").disabled = false;
   }
+}
+
+function resetAssignmentFromRows() {
+  state.assignment = autoAssignmentFromRows();
+}
+
+function syncAssignmentFromRows() {
+  const auto = autoAssignmentFromRows();
+  state.assignment = Object.fromEntries(
+    Object.entries(auto).map(([stateName, bits]) => [stateName, state.assignment[stateName] ?? bits])
+  );
+}
+
+function autoAssignmentFromRows() {
+  const rows = state.rows
+    .map((row) => ({ state: String(row.state ?? "").trim().toUpperCase() }))
+    .filter((row) => row.state);
+  return rows.length ? assignStates(rows) : {};
+}
+
+function renderAssignmentEditor() {
+  syncAssignmentFromRows();
+  const entries = Object.entries(state.assignment);
+
+  if (!entries.length) {
+    els.assignmentTable.innerHTML = '<span class="placeholder">Assignments appear after states are entered.</span>';
+    return;
+  }
+
+  els.assignmentTable.innerHTML = `
+    ${entries
+      .map(
+        ([stateName, bits]) => `
+          <label class="assignment-row">
+            <span>${stateName}</span>
+            <input data-assignment-state="${stateName}" value="${escapeHtml(bits)}" inputmode="numeric" />
+          </label>
+        `
+      )
+      .join("")}
+    <button class="secondary-button assignment-auto-button" id="autoAssignButton" type="button">Auto Assign</button>
+  `;
+
+  els.assignmentTable.querySelectorAll("input").forEach((input) => {
+    input.addEventListener("input", () => {
+      state.assignment[input.dataset.assignmentState] = input.value.trim();
+      clearResults("State assignment edited.");
+    });
+  });
+
+  els.assignmentTable.querySelector("#autoAssignButton").addEventListener("click", () => {
+    resetAssignmentFromRows();
+    renderAssignmentEditor();
+    clearResults("Auto assignment restored.");
+  });
+}
+
+function readAssignmentFromEditor() {
+  const assignment = {};
+  els.assignmentTable.querySelectorAll("input[data-assignment-state]").forEach((input) => {
+    assignment[input.dataset.assignmentState] = input.value.trim();
+  });
+  return assignment;
 }
 
 function readRowsFromTable() {
@@ -241,9 +319,7 @@ function readRowsFromTable() {
 function renderAnalysis() {
   const { analysis } = state;
 
-  els.assignmentTable.innerHTML = Object.entries(analysis.assignment)
-    .map(([stateName, bits]) => `<div>${stateName}</div><strong>${bits}</strong>`)
-    .join("");
+  renderAssignmentEditor();
 
   const ffEquations = analysis.equations.filter((equation) => equation.type === "ff-input");
   const outputEquation = analysis.equations.find((equation) => equation.name === "Z");

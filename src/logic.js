@@ -76,9 +76,9 @@ export function assignStates(rows) {
   );
 }
 
-export function analyzeCircuit(rows, modelType, ffType) {
+export function analyzeCircuit(rows, modelType, ffType, options = {}) {
   const normalizedRows = normalizeRows(rows, modelType);
-  const assignment = assignStates(normalizedRows);
+  const assignment = normalizeAssignment(normalizedRows, options.assignment);
   const stateBits = Object.values(assignment)[0].length;
   const variables = buildVariables(stateBits);
   const transitions = expandTransitions(normalizedRows, modelType, assignment);
@@ -102,6 +102,43 @@ export function analyzeCircuit(rows, modelType, ffType) {
     kMaps: Object.fromEntries(equations.map((equation) => [equation.name, buildKMap(equation, variables.ordered)])),
     graph: buildCircuitGraph(equations, variables, ffType),
   };
+}
+
+function normalizeAssignment(rows, customAssignment) {
+  if (!customAssignment) return assignStates(rows);
+
+  const stateNames = rows.map((row) => row.state);
+  const values = stateNames.map((state) => cleanToken(customAssignment[state]));
+  const bitLength = values[0]?.length;
+
+  if (!bitLength) {
+    throw new Error("State assignment is missing.");
+  }
+
+  const minimumBits = Math.max(1, Math.ceil(Math.log2(rows.length)));
+  if (bitLength < minimumBits) {
+    throw new Error(`State assignment needs at least ${minimumBits} bit(s).`);
+  }
+
+  const seen = new Set();
+  const assignment = {};
+
+  stateNames.forEach((state, index) => {
+    const bits = values[index];
+    if (!/^[01]+$/.test(bits)) {
+      throw new Error(`State ${state} has invalid assignment. Use only 0 and 1.`);
+    }
+    if (bits.length !== bitLength) {
+      throw new Error("All state assignments must have the same number of bits.");
+    }
+    if (seen.has(bits)) {
+      throw new Error(`Duplicate state assignment: ${bits}.`);
+    }
+    seen.add(bits);
+    assignment[state] = bits;
+  });
+
+  return assignment;
 }
 
 function expandTransitions(rows, modelType, assignment) {
