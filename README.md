@@ -7,7 +7,7 @@ This is the first runnable web prototype for a sequential circuit design automat
 - Single input: `X`
 - Single output: `Z`
 - Model types: Mealy and Moore
-- Flip-flop types: JK and T
+- Flip-flop types: JK, T, SR, and D
 - Editable state table
 - Local example parser for the "three or more consecutive 1s" problem
 - Optional OpenAI API key input for real AI text-to-state-table parsing

@@ -22,10 +22,7 @@ export function verifyEquations(rows, modelType, ffType, assignment) {
     for (const [index, qName] of analysis.variables.state.entries()) {
       const q = Number(transition.presentBits[index]);
       const expectedNext = Number(transition.nextBits[index]);
-      const actualNext =
-        ffType === "jk"
-          ? evaluateJkNext(equations[`J${qName}`], equations[`K${qName}`], q, variables)
-          : q ^ evaluateExpression(equations[`T${qName}`], variables);
+      const actualNext = evaluateFlipFlopNext(ffType, qName, equations, q, variables);
 
       checks.push({
         kind: qName,
@@ -70,8 +67,13 @@ export function buildDerivation(analysis, ffType) {
       if (ffType === "jk") {
         row[`J${qName}`] = jkExcitation("J", q, qNext);
         row[`K${qName}`] = jkExcitation("K", q, qNext);
-      } else {
+      } else if (ffType === "t") {
         row[`T${qName}`] = q === qNext ? "0" : "1";
+      } else if (ffType === "sr") {
+        row[`S${qName}`] = srExcitation("S", q, qNext);
+        row[`R${qName}`] = srExcitation("R", q, qNext);
+      } else if (ffType === "d") {
+        row[`D${qName}`] = qNext;
       }
     }
 
@@ -221,6 +223,31 @@ function evaluateJkNext(jExpression, kExpression, q, variables) {
   return (!q && j) || (q && !k) ? 1 : 0;
 }
 
+function evaluateFlipFlopNext(ffType, qName, equations, q, variables) {
+  if (ffType === "jk") {
+    return evaluateJkNext(equations[`J${qName}`], equations[`K${qName}`], q, variables);
+  }
+
+  if (ffType === "t") {
+    return q ^ evaluateExpression(equations[`T${qName}`], variables);
+  }
+
+  if (ffType === "d") {
+    return evaluateExpression(equations[`D${qName}`], variables);
+  }
+
+  if (ffType === "sr") {
+    const s = evaluateExpression(equations[`S${qName}`], variables);
+    const r = evaluateExpression(equations[`R${qName}`], variables);
+    if (s && r) return Number.NaN;
+    if (s) return 1;
+    if (r) return 0;
+    return q;
+  }
+
+  throw new Error(`Unsupported flip-flop type: ${ffType}`);
+}
+
 function evaluateExpression(expression, variables) {
   if (expression === "0") return 0;
   if (expression === "1") return 1;
@@ -255,6 +282,13 @@ function jkExcitation(inputName, q, qNext) {
   if (q === "1" && qNext === "0") return "1";
   if (q === "1" && qNext === "1") return "0";
   return "X";
+}
+
+function srExcitation(inputName, q, qNext) {
+  if (q === "0" && qNext === "0") return inputName === "S" ? "0" : "X";
+  if (q === "0" && qNext === "1") return inputName === "S" ? "1" : "0";
+  if (q === "1" && qNext === "0") return inputName === "S" ? "0" : "1";
+  return inputName === "S" ? "X" : "0";
 }
 
 function scoreEquations(equations) {

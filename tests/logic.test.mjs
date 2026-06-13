@@ -58,7 +58,7 @@ assertEquationsReconstructStateTable(textbookRows, "mealy", "jk", {
 });
 
 for (const model of ["mealy", "moore"]) {
-  for (const ffType of ["jk", "t"]) {
+  for (const ffType of ["jk", "t", "sr", "d"]) {
     const rows = model === "mealy" ? examples.mealyThreeOnes.rows : examples.mooreThreeOnes.rows;
     assertEquationsReconstructStateTable(rows, model, ffType);
   }
@@ -66,7 +66,7 @@ for (const model of ["mealy", "moore"]) {
 
 for (const stateCount of [1, 2, 3, 4, 5, 6]) {
   for (const model of ["mealy", "moore"]) {
-    for (const ffType of ["jk", "t"]) {
+    for (const ffType of ["jk", "t", "sr", "d"]) {
       for (let seed = 1; seed <= 40; seed += 1) {
         assertEquationsReconstructStateTable(makeRandomRows(stateCount, model, seed), model, ffType);
       }
@@ -98,7 +98,11 @@ function assertEquationsReconstructStateTable(rows, model, ffType, options = {})
       const actual =
         ffType === "jk"
           ? evaluateJkNextState(equations[`J${name}`], equations[`K${name}`], q, variables)
-          : q ^ evaluateExpression(equations[`T${name}`], variables);
+          : ffType === "t"
+            ? q ^ evaluateExpression(equations[`T${name}`], variables)
+            : ffType === "d"
+              ? evaluateExpression(equations[`D${name}`], variables)
+              : evaluateSrNextState(equations[`S${name}`], equations[`R${name}`], q, variables);
 
       assert.equal(
         actual,
@@ -113,6 +117,15 @@ function evaluateJkNextState(jExpression, kExpression, q, variables) {
   const j = evaluateExpression(jExpression, variables);
   const k = evaluateExpression(kExpression, variables);
   return (!q && j) || (q && !k) ? 1 : 0;
+}
+
+function evaluateSrNextState(sExpression, rExpression, q, variables) {
+  const s = evaluateExpression(sExpression, variables);
+  const r = evaluateExpression(rExpression, variables);
+  assert.ok(!(s && r), "SR input cannot be S=1 and R=1 for a required transition.");
+  if (s) return 1;
+  if (r) return 0;
+  return q;
 }
 
 function evaluateExpression(expression, variables) {

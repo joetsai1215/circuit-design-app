@@ -166,7 +166,7 @@ function buildVariables(stateBits) {
 }
 
 function buildExcitationFunction(bitIndex, bitName, ffType, transitions, unusedRows, variables) {
-  const outputs = ffType === "jk" ? [`J${bitName}`, `K${bitName}`] : [`T${bitName}`];
+  const outputs = excitationOutputs(ffType, bitName);
 
   return outputs.map((name) => {
     const truthRows = [
@@ -192,9 +192,28 @@ function buildExcitationFunction(bitIndex, bitName, ffType, transitions, unusedR
   });
 }
 
+function excitationOutputs(ffType, bitName) {
+  if (ffType === "jk") return [`J${bitName}`, `K${bitName}`];
+  if (ffType === "t") return [`T${bitName}`];
+  if (ffType === "sr") return [`S${bitName}`, `R${bitName}`];
+  if (ffType === "d") return [`D${bitName}`];
+  throw new Error(`Unsupported flip-flop type: ${ffType}`);
+}
+
 function excitationValue(ffType, inputName, q, qNext) {
+  if (ffType === "d") {
+    return qNext;
+  }
+
   if (ffType === "t") {
     return q === qNext ? "0" : "1";
+  }
+
+  if (ffType === "sr") {
+    if (q === "0" && qNext === "0") return inputName === "S" ? "0" : "X";
+    if (q === "0" && qNext === "1") return inputName === "S" ? "1" : "0";
+    if (q === "1" && qNext === "0") return inputName === "S" ? "0" : "1";
+    return inputName === "S" ? "X" : "0";
   }
 
   if (inputName === "J") {

@@ -171,7 +171,13 @@ function loadApiSettings() {
 
 function renderBadges() {
   els.modelBadge.textContent = state.modelType === "mealy" ? "MEALY Model" : "MOORE Model";
-  els.ffBadge.textContent = state.ffType === "jk" ? "JK Flip-Flop" : "T Flip-Flop";
+  els.ffBadge.textContent =
+    {
+      jk: "JK Flip-Flop",
+      t: "T Flip-Flop",
+      sr: "SR Flip-Flop",
+      d: "D Flip-Flop",
+    }[state.ffType] ?? "JK Flip-Flop";
   els.modelHint.textContent =
     state.modelType === "mealy"
       ? "Mealy: output depends on present state and input."
@@ -413,7 +419,9 @@ function renderEnhancedTools() {
   renderEnhancedVerification(verification);
   renderEnhancedDerivation(buildDerivation(state.analysis, state.ffType));
   renderSequenceSimulation();
-  els.verilogOutput.value = generateVerilog(state.analysis, state.analysis.rows, state.modelType, state.ffType);
+  els.verilogOutput.value = formatVerilogForDisplay(
+    generateVerilog(state.analysis, state.analysis.rows, state.modelType, state.ffType)
+  );
 }
 
 function runEnhancedVerification() {
@@ -445,7 +453,9 @@ function runAssignmentOptimizer() {
         const assignmentText = Object.entries(result.assignment)
           .map(([stateName, bits]) => `${stateName}=${bits}`)
           .join(", ");
-        const equations = result.equations.map((equation) => `${equation.name}=${equation.expression}`).join(" ; ");
+        const equations = result.equations
+          .map((equation) => `${formatEquationNamePlain(equation.name)}=${formatExpression(equation.expression)}`)
+          .join(" ; ");
         return `
           <article class="optimizer-card">
             <div>
@@ -486,7 +496,12 @@ function renderEnhancedVerification(verification) {
     </div>
     <div class="enhanced-equation-list">
       ${verification.analysis.equations
-        .map((equation) => `<span class="equation-chip">${escapeHtml(equation.name)} = ${escapeHtml(equation.expression)}</span>`)
+        .map(
+          (equation) =>
+            `<span class="equation-chip">${escapeHtml(formatEquationNamePlain(equation.name))} = ${escapeHtml(
+              formatExpression(equation.expression)
+            )}</span>`
+        )
         .join("")}
     </div>
     ${tableHtml(
@@ -494,7 +509,7 @@ function renderEnhancedVerification(verification) {
       verification.checks.map((check) => [
         check.state,
         check.input,
-        check.kind,
+        formatSignalLabel(check.kind),
         check.expected,
         check.actual,
         check.pass ? "yes" : "no",
@@ -506,13 +521,14 @@ function renderEnhancedVerification(verification) {
 
 function renderEnhancedDerivation(derivation) {
   const excitationHeaders = Object.keys(derivation.excitationRows[0] ?? {});
+  const stateGroup = formatStateVariableGroup();
 
   els.enhancedDerivationView.innerHTML = `
     <div class="derivation-grid">
       <article>
         <h4>Binary Transition Table</h4>
         ${tableHtml(
-          ["State", "Q", "X", "Next", "Q+", "Z"],
+          ["State", stateGroup, "X", "Next", `${stateGroup}+`, "Z"],
           derivation.binaryRows.map((row) => [
             row.presentState,
             row.presentBits,
@@ -527,7 +543,7 @@ function renderEnhancedDerivation(derivation) {
       <article>
         <h4>Excitation Table</h4>
         ${tableHtml(
-          excitationHeaders,
+          excitationHeaders.map(formatEnhancedHeader),
           derivation.excitationRows.map((row) => excitationHeaders.map((header) => row[header])),
           "small-table"
         )}
@@ -539,7 +555,9 @@ function renderEnhancedDerivation(derivation) {
         .map(
           (truth) => `
             <article class="derivation-kmap-card">
-              <div class="derivation-kmap-title">${escapeHtml(truth.name)} = ${escapeHtml(truth.expression)}</div>
+              <div class="derivation-kmap-title">${escapeHtml(formatEquationNamePlain(truth.name))} = ${escapeHtml(
+                formatExpression(truth.expression)
+              )}</div>
               ${renderDerivationKMap(truth.kMap)}
             </article>
           `
@@ -557,7 +575,7 @@ function renderDerivationKMap(kmap) {
     <div class="derivation-mini-kmap" style="--kmap-cols: ${columnCount}">
       <div class="kmap-corner">
         <span class="corner-states">${formatKMapCornerVariables(displayMap.rowVariables)}</span>
-        <span class="corner-input">${escapeHtml(displayMap.columnVariable)}</span>
+        <span class="corner-input">${escapeHtml(formatKMapVariableText(displayMap.columnVariable))}</span>
       </div>
       ${displayMap.columnLabels.map((label) => `<div class="kmap-head">${escapeHtml(label)}</div>`).join("")}
       ${displayMap.rowLabels
@@ -580,7 +598,51 @@ function renderDerivationKMap(kmap) {
 }
 
 function formatKMapCornerVariables(value) {
-  return escapeHtml(String(value ?? "").replace(/(Q\d+)/g, "$1 ").trim());
+  return escapeHtml(formatKMapVariableText(value).replace(/\s+/g, ""));
+}
+
+function formatVariableText(value) {
+  return String(value ?? "").replace(/Q\d+/g, (qName) => displayStateLabel(qName));
+}
+
+function formatKMapVariableText(value) {
+  const stateVariables = state.analysis?.variables.state ?? [];
+  return String(value ?? "").replace(/Q\d+/g, (qName) => {
+    const index = stateVariables.indexOf(qName);
+    return index >= 0 ? `Q${index + 1}` : qName;
+  });
+}
+
+function formatStateVariableGroup() {
+  return state.analysis?.variables.state.map((name) => displayStateLabel(name)).join("") || "Q";
+}
+
+function formatEquationNamePlain(name) {
+  const match = name.match(/^([JKTSRD])(Q\d+)$/);
+  if (match) return `${match[1]}${displayStateLabel(match[2])}`;
+  return formatVariableText(name);
+}
+
+function formatSignalLabel(kind) {
+  if (kind === "output") return "Z";
+  return formatEquationNamePlain(kind);
+}
+
+function formatEnhancedHeader(header) {
+  const labels = {
+    presentState: "State",
+    presentBits: formatStateVariableGroup(),
+    input: "X",
+    nextBits: `${formatStateVariableGroup()}+`,
+  };
+  return labels[header] ?? formatEquationNamePlain(header);
+}
+
+function formatVerilogForDisplay(verilog) {
+  return verilog.replace(/^\/\/\s*([JKT]?Q\d+|Z)\s*=\s*(.+)$/gm, (line, name, expression) => {
+    const displayName = formatEquationNamePlain(name);
+    return `// ${displayName} = ${formatExpression(expression.trim())}`;
+  });
 }
 
 function renderSequenceSimulation() {
@@ -877,7 +939,7 @@ function renderEmptyEnhancedTools() {
 }
 
 function formatEquationName(name) {
-  const match = name.match(/^([JKT])(Q\d+)$/);
+  const match = name.match(/^([JKTSRD])(Q\d+)$/);
   if (!match) return name;
   return `${match[1]}<sub>${displayStateLabel(match[2])}</sub>`;
 }
