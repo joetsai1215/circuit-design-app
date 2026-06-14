@@ -16,6 +16,8 @@ const state = {
   rows: structuredClone(examples.mealyThreeOnes.rows),
   assignment: {},
   analysis: null,
+  verilogSource: "",
+  simulationRows: [],
   waveform: {
     type: "sine",
     frequency: 5,
@@ -48,7 +50,9 @@ const els = {
   enhancedDerivationView: document.querySelector("#enhancedDerivationView"),
   sequenceInput: document.querySelector("#sequenceInput"),
   sequenceSimulationView: document.querySelector("#sequenceSimulationView"),
+  timingDiagramView: document.querySelector("#timingDiagramView"),
   verilogOutput: document.querySelector("#verilogOutput"),
+  downloadVerilogButton: document.querySelector("#downloadVerilogButton"),
   waveformCanvas: document.querySelector("#waveformCanvas"),
   mathExpression: document.querySelector("#mathExpression"),
   summaryPanel: document.querySelector("#summaryPanel"),
@@ -145,6 +149,7 @@ function init() {
   document.querySelector("#verifyEquationButton").addEventListener("click", runEnhancedVerification);
   document.querySelector("#optimizeAssignmentButton").addEventListener("click", runAssignmentOptimizer);
   document.querySelector("#simulateSequenceButton").addEventListener("click", renderSequenceSimulation);
+  els.downloadVerilogButton.addEventListener("click", downloadVerilog);
   els.equationSelect.addEventListener("change", renderSelectedKMap);
 
   document.querySelector("#zoomOutButton").addEventListener("click", () => zoomDiagram(els.circuitSvg, -0.15));
@@ -405,7 +410,7 @@ function renderAnalysis() {
   `;
 
   els.equationSelect.innerHTML = analysis.equations
-    .map((equation) => `<option value="${equation.name}">${equation.name}</option>`)
+    .map((equation) => `<option value="${equation.name}">${formatEquationNamePlain(equation.name)}</option>`)
     .join("");
   renderAllKMaps();
   resetDiagramView();
@@ -419,9 +424,8 @@ function renderEnhancedTools() {
   renderEnhancedVerification(verification);
   renderEnhancedDerivation(buildDerivation(state.analysis, state.ffType));
   renderSequenceSimulation();
-  els.verilogOutput.value = formatVerilogForDisplay(
-    generateVerilog(state.analysis, state.analysis.rows, state.modelType, state.ffType)
-  );
+  state.verilogSource = generateVerilog(state.analysis, state.analysis.rows, state.modelType, state.ffType);
+  els.verilogOutput.value = formatVerilogForDisplay(state.verilogSource);
 }
 
 function runEnhancedVerification() {
@@ -601,25 +605,30 @@ function formatKMapCornerVariables(value) {
   return escapeHtml(formatKMapVariableText(value).replace(/\s+/g, ""));
 }
 
+function toSubscript(str) {
+  const subs = { 0: "₀", 1: "₁", 2: "₂", 3: "₃", 4: "₄", 5: "₅", 6: "₆", 7: "₇", 8: "₈", 9: "₉" };
+  return String(str).replace(/[0-9]/g, (match) => subs[match]);
+}
+
+function formatStateBit(qName) {
+  return String(qName ?? "").replace(/^Q(\d+)$/, (_, digits) => `Q${toSubscript(digits)}`);
+}
+
 function formatVariableText(value) {
-  return String(value ?? "").replace(/Q\d+/g, (qName) => displayStateLabel(qName));
+  return String(value ?? "").replace(/Q\d+/g, (qName) => formatStateBit(qName));
 }
 
 function formatKMapVariableText(value) {
-  const stateVariables = state.analysis?.variables.state ?? [];
-  return String(value ?? "").replace(/Q\d+/g, (qName) => {
-    const index = stateVariables.indexOf(qName);
-    return index >= 0 ? `Q${index + 1}` : qName;
-  });
+  return formatVariableText(value);
 }
 
 function formatStateVariableGroup() {
-  return state.analysis?.variables.state.map((name) => displayStateLabel(name)).join("") || "Q";
+  return state.analysis?.variables.state.map((name) => formatStateBit(name)).join("") || "Q";
 }
 
 function formatEquationNamePlain(name) {
   const match = name.match(/^([JKTSRD])(Q\d+)$/);
-  if (match) return `${match[1]}${displayStateLabel(match[2])}`;
+  if (match) return `${match[1]}${formatStateBit(match[2])}`;
   return formatVariableText(name);
 }
 
@@ -639,7 +648,7 @@ function formatEnhancedHeader(header) {
 }
 
 function formatVerilogForDisplay(verilog) {
-  return verilog.replace(/^\/\/\s*([JKT]?Q\d+|Z)\s*=\s*(.+)$/gm, (line, name, expression) => {
+  return verilog.replace(/^\/\/\s*([JKTSRD]?Q\d+|Z)\s*=\s*(.+)$/gm, (line, name, expression) => {
     const displayName = formatEquationNamePlain(name);
     return `// ${displayName} = ${formatExpression(expression.trim())}`;
   });
@@ -650,14 +659,95 @@ function renderSequenceSimulation() {
 
   try {
     const rows = simulateSequence(readRowsFromTable(), state.modelType, els.sequenceInput.value);
+    state.simulationRows = rows;
     els.sequenceSimulationView.innerHTML = tableHtml(
       ["Clock", "X", "Present State", "Next State", "Z"],
       rows.map((row) => [row.clock, row.input, row.presentState, row.nextState, row.output]),
       "small-table"
     );
+    renderTimingDiagram(rows);
   } catch (error) {
+    state.simulationRows = [];
     els.sequenceSimulationView.innerHTML = `<div class="placeholder error">${escapeHtml(error.message)}</div>`;
+    els.timingDiagramView.innerHTML = `<div class="placeholder error">${escapeHtml(error.message)}</div>`;
   }
+}
+
+function downloadVerilog() {
+  if (!state.analysis || !state.verilogSource) {
+    setStatus("Generate Circuit before downloading Verilog.", true);
+    return;
+  }
+
+  const blob = new Blob([state.verilogSource], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "sequential_circuit_enhanced.v";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  setStatus("Verilog file downloaded.");
+}
+
+function renderTimingDiagram(rows) {
+  if (!els.timingDiagramView) return;
+
+  if (!rows.length) {
+    els.timingDiagramView.innerHTML = '<div class="placeholder">Enter a 0/1 input sequence to render timing.</div>';
+    return;
+  }
+
+  const source = buildWaveDromSource(rows);
+  els.timingDiagramView.innerHTML = "";
+
+  const script = document.createElement("script");
+  script.type = "WaveDrom";
+  script.textContent = JSON.stringify(source, null, 2);
+  els.timingDiagramView.appendChild(script);
+
+  if (window.WaveDrom?.ProcessAll) {
+    window.WaveDrom.ProcessAll();
+    return;
+  }
+
+  if (window.WaveDrom?.RenderWaveForm && window.WaveSkin) {
+    const target = document.createElement("div");
+    els.timingDiagramView.appendChild(target);
+    window.WaveDrom.RenderWaveForm(0, source, window.WaveSkin);
+    return;
+  }
+
+  els.timingDiagramView.innerHTML = `
+    <div class="placeholder">WaveDrom CDN is not loaded. Timing JSON is shown below.</div>
+    <pre class="timing-json">${escapeHtml(JSON.stringify(source, null, 2))}</pre>
+  `;
+}
+
+function buildWaveDromSource(rows) {
+  const stateData = [rows[0].presentState, ...rows.map((row) => row.nextState)];
+  const length = rows.length + 1;
+
+  return {
+    signal: [
+      { name: "CLK", wave: `${"p".repeat(rows.length)}.` },
+      { name: "X", wave: `${digitalWave(rows.map((row) => row.input))}.` },
+      { name: "State", wave: "=".repeat(length), data: stateData },
+      { name: "Z", wave: `${digitalWave(rows.map((row) => row.output))}.` },
+    ],
+    config: { hscale: 1.2 },
+  };
+}
+
+function digitalWave(values) {
+  return values
+    .map((value, index) => {
+      const bit = value === "1" ? "1" : "0";
+      if (index === 0) return bit;
+      return values[index - 1] === value ? "." : bit;
+    })
+    .join("");
 }
 
 function tableHtml(headers, rows, className = "") {
@@ -945,6 +1035,8 @@ function renderEmptyResults() {
 }
 
 function renderEmptyEnhancedTools() {
+  state.verilogSource = "";
+  state.simulationRows = [];
   els.enhancedVerificationView.innerHTML =
     '<div class="placeholder">Generate a circuit to verify equations against the state table.</div>';
   els.enhancedOptimizerView.innerHTML =
@@ -952,13 +1044,14 @@ function renderEmptyEnhancedTools() {
   els.enhancedDerivationView.innerHTML =
     '<div class="placeholder">Binary transitions, excitation values, and horizontal K-maps appear after generation.</div>';
   els.sequenceSimulationView.innerHTML = '<div class="placeholder">Simulate a clock input sequence after generation.</div>';
+  els.timingDiagramView.innerHTML = '<div class="placeholder">Run sequence simulation to render CLK, X, state, and Z timing.</div>';
   els.verilogOutput.value = "";
 }
 
 function formatEquationName(name) {
   const match = name.match(/^([JKTSRD])(Q\d+)$/);
   if (!match) return name;
-  return `${match[1]}<sub>${displayStateLabel(match[2])}</sub>`;
+  return `${match[1]}${formatStateBit(match[2])}`;
 }
 
 function formatExpression(expression) {
@@ -967,7 +1060,7 @@ function formatExpression(expression) {
     if (token.startsWith("Q")) {
       const inverted = token.endsWith("'");
       const qName = inverted ? token.slice(0, -1) : token;
-      return `${displayStateLabel(qName)}${inverted ? "'" : ""}`;
+      return `${formatStateBit(qName)}${inverted ? "'" : ""}`;
     }
     return token;
   });
@@ -975,12 +1068,11 @@ function formatExpression(expression) {
 
 function displayEquationTarget(name) {
   const match = name.match(/Q\d+$/);
-  return match ? displayStateLabel(match[0]) : name;
+  return match ? formatStateBit(match[0]) : name;
 }
 
 function displayStateLabel(qName) {
-  const index = state.analysis?.variables.state.indexOf(qName) ?? -1;
-  return index >= 0 ? String.fromCharCode(65 + index) : qName;
+  return formatStateBit(qName);
 }
 
 function clearResults(message) {

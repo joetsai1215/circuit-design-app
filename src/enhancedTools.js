@@ -132,19 +132,28 @@ export function simulateSequence(rows, modelType, sequence) {
 }
 
 export function generateVerilog(analysis, rows, modelType, ffType) {
-  const stateNames = rows.map((row) => row.state);
   const stateWidth = analysis.variables.state.length;
+  const stateNames = rows.map((row) => row.state);
+  const stateIdMap = makeStateIdentifierMap(stateNames);
   const stateParams = Object.entries(analysis.assignment)
-    .map(([state, bits]) => `localparam [${stateWidth - 1}:0] S_${state} = ${stateWidth}'b${bits};`)
+    .map(([state, bits]) => `localparam [${stateWidth - 1}:0] ${stateIdMap.get(state)} = ${stateWidth}'b${bits};`)
     .join("\n");
   const transitionCases = rows
     .map((row) => {
       const output0 = modelType === "mealy" ? row.out0 : row.output;
       const output1 = modelType === "mealy" ? row.out1 : row.output;
+      const currentState = stateIdMap.get(row.state);
+      const next0 = stateIdMap.get(row.next0);
+      const next1 = stateIdMap.get(row.next1);
       return [
-        `      S_${row.state}: begin`,
-        `        if (X == 1'b0) begin next_state = S_${row.next0}; Z = 1'b${output0}; end`,
-        `        else begin next_state = S_${row.next1}; Z = 1'b${output1}; end`,
+        `      ${currentState}: begin`,
+        `        if (X == 1'b0) begin`,
+        `          next_state = ${next0};`,
+        `          Z = 1'b${output0};`,
+        `        end else begin`,
+        `          next_state = ${next1};`,
+        `          Z = 1'b${output1};`,
+        `        end`,
         "      end",
       ].join("\n");
     })
@@ -152,35 +161,79 @@ export function generateVerilog(analysis, rows, modelType, ffType) {
   const equationLines = analysis.equations
     .map((equation) => `// ${equation.name} = ${equation.expression}`)
     .join("\n");
+  const resetState = stateIdMap.get(stateNames[0]);
 
-  return `module sequential_circuit_enhanced(
+  return `\`timescale 1ns / 1ps
+` + "`default_nettype none" + `
+
+module sequential_circuit_enhanced(
   input wire clk,
   input wire reset,
   input wire X,
-  output reg Z
+  output reg Z,
+  output wire [${stateWidth - 1}:0] state_bits
 );
+
+// Model type: ${modelType.toUpperCase()}
+// Design reference flip-flop type: ${ffType.toUpperCase()}
+// State assignment:
+${Object.entries(analysis.assignment).map(([state, bits]) => `//   ${state} = ${bits}`).join("\n")}
+// Simplified equations:
+${equationLines}
 
 ${stateParams}
 
 reg [${stateWidth - 1}:0] state, next_state;
 
-${equationLines}
+assign state_bits = state;
 
 always @(*) begin
   next_state = state;
   Z = 1'b0;
   case (state)
 ${transitionCases}
-      default: begin next_state = S_${stateNames[0]}; Z = 1'b0; end
+      default: begin
+        next_state = ${resetState};
+        Z = 1'b0;
+      end
   endcase
 end
 
 always @(posedge clk or posedge reset) begin
-  if (reset) state <= S_${stateNames[0]};
+  if (reset) state <= ${resetState};
   else state <= next_state;
 end
 
-endmodule`;
+endmodule
+
+` + "`default_nettype wire";
+}
+
+function makeStateIdentifierMap(stateNames) {
+  const used = new Set();
+  return new Map(
+    stateNames.map((stateName, index) => {
+      const base = `S_${toVerilogIdentifier(stateName) || `STATE_${index}`}`;
+      let candidate = base;
+      let suffix = 1;
+      while (used.has(candidate)) {
+        candidate = `${base}_${suffix}`;
+        suffix += 1;
+      }
+      used.add(candidate);
+      return [stateName, candidate];
+    })
+  );
+}
+
+function toVerilogIdentifier(value) {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_$]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  if (!cleaned) return "";
+  return /^[a-zA-Z_]/.test(cleaned) ? cleaned : `STATE_${cleaned}`;
 }
 
 export function makeDefaultAssignment(rows) {

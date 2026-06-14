@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sequential Circuit Design Automation System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/skins/default.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/wavedrom.min.js"></script>
     <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
@@ -210,9 +212,19 @@
                 </div>
               </article>
 
+              <article class="enhanced-card wide-card">
+                <div class="enhanced-card-header">
+                  <h3>WaveDrom Timing Trace</h3>
+                </div>
+                <div id="timingDiagramView" class="enhanced-panel timing-panel">
+                  <div class="placeholder">Run sequence simulation to render CLK, X, state, and Z timing.</div>
+                </div>
+              </article>
+
               <article class="enhanced-card">
                 <div class="enhanced-card-header">
                   <h3>Verilog Export</h3>
+                  <button class="secondary-button" id="downloadVerilogButton" type="button">Download .v</button>
                 </div>
                 <textarea id="verilogOutput" spellcheck="false" readonly></textarea>
               </article>

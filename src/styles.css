@@ -820,6 +820,27 @@ textarea:focus {
   padding: 7px 10px;
 }
 
+.timing-panel {
+  min-height: 180px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdff;
+  padding: 10px;
+}
+
+.timing-panel svg {
+  max-width: none;
+}
+
+.timing-json {
+  margin: 10px 0 0;
+  white-space: pre-wrap;
+  color: #233044;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+}
+
 #verilogOutput {
   width: 100%;
   min-height: 360px;
