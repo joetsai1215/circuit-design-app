@@ -87,6 +87,7 @@ export function renderCircuitDiagram(svg, analysis) {
 
   svg.innerHTML = "";
   svg.setAttribute("viewBox", `0 0 ${layout.canvasWidth} ${height}`);
+  svg.setAttribute("preserveAspectRatio", "xMidYMin meet");
 
   const root = createSvgElement("g", { id: "viewportRoot" });
   const wires = createSvgElement("g", { id: "wireLayer" });

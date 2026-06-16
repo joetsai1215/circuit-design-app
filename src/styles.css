@@ -37,6 +37,7 @@ textarea {
 }
 
 .topbar {
+  position: relative;
   min-height: 54px;
   display: flex;
   align-items: center;
@@ -74,6 +75,23 @@ textarea {
   gap: 16px;
   font-size: 17px;
   white-space: nowrap;
+}
+
+.student-badge {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(203, 213, 225, 0.55);
+  border-radius: 4px;
+  padding: 8px 18px;
+  background: rgba(248, 250, 252, 0.16);
+  color: #f8fafc;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
+  box-shadow: 0 0 0 1px rgba(248, 250, 252, 0.08) inset;
 }
 
 .status-pill {
@@ -557,8 +575,9 @@ textarea:focus {
 }
 
 .diagram-stage {
-  height: calc(100vh - 174px);
-  min-height: 610px;
+  aspect-ratio: 16 / 10;
+  min-height: 460px;
+  max-height: 720px;
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
@@ -1016,6 +1035,13 @@ textarea:focus {
     padding: 16px;
   }
 
+  .student-badge {
+    position: static;
+    align-self: stretch;
+    transform: none;
+    text-align: center;
+  }
+
   .zone {
     padding: 18px;
   }
@@ -1033,5 +1059,9 @@ textarea:focus {
 
   .sequence-controls {
     grid-template-columns: 1fr;
+  }
+
+  .diagram-stage {
+    min-height: 360px;
   }
 }
